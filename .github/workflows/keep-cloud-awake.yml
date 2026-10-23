@@ -1,5 +1,6 @@
 # The free Supabase plan pauses a project after a week without requests.
 # This pings the sync server every 3 days so phone ⇄ laptop sync keeps working during holidays.
+# If the server is paused or unreachable, this run fails and GitHub emails you.
 name: Keep sync server awake
 on:
   schedule:
@@ -11,10 +12,11 @@ jobs:
     steps:
       - name: Ping
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          body=$(curl -s -m 30 -X POST \
             "https://ujvepmswpraqbpsnwmtl.supabase.co/rest/v1/rpc/sync_status" \
             -H "apikey: sb_publishable_aY78IsFJNOFTB1zbwlwA7Q_3pPgZrJj" \
             -H "Content-Type: application/json" \
             -d '{"p_key":"keep-awake-ping-keep-awake-ping-00"}')
-          echo "HTTP $code (404 'unknown sync key' is the expected answer)"
-          test "$code" = "404" -o "$code" = "400" -o "$code" = "200"
+          echo "$body"
+          # the expected answer for this dummy key is "unknown sync key": it means the database ran the function
+          echo "$body" | grep -q 'unknown sync key'
