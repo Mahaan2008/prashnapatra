@@ -157,12 +157,20 @@
     }
 
     function drawWhere() {
+      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths'];
+      var allowedStds = app.userStandards ? app.userStandards() : [11, 12];
+      var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
+      var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
+
+      if (allowedSubs.indexOf(draft.subject) === -1 && subList.length) draft.subject = subList[0].id;
+      if (allowedStds.indexOf(Number(draft.std)) === -1 && stdList.length) draft.std = stdList[0];
+
       var std = Number(draft.std);
       var chapters = QPG.syllabus.chapters(draft.subject, std);
       var topics = QPG.filters.facets(app.state.questions.filter(function (q) { return q.subject === draft.subject; })).topics;
       $('[data-where]').innerHTML =
-        field('fq-subject', 'વિષય', '<select id="fq-subject" class="input" data-k="subject">' + QPG.syllabus.SUBJECTS.map(function (s) { return opt(s.id, s.gu, draft.subject); }).join('') + '</select>', 'subject') +
-        field('fq-std', 'ધોરણ', '<select id="fq-std" class="input" data-k="std" data-num>' + QPG.syllabus.STANDARDS.map(function (s) { return opt(s, 'ધોરણ ' + s, draft.std); }).join('') + '</select>', 'std') +
+        field('fq-subject', 'વિષય', '<select id="fq-subject" class="input" data-k="subject">' + subList.map(function (s) { return opt(s.id, s.gu, draft.subject); }).join('') + '</select>', 'subject') +
+        field('fq-std', 'ધોરણ', '<select id="fq-std" class="input" data-k="std" data-num>' + stdList.map(function (s) { return opt(s, 'ધોરણ ' + s, draft.std); }).join('') + '</select>', 'std') +
         field('fq-chapter', 'પ્રકરણ', chapters.length
           ? '<select id="fq-chapter" class="input" data-k="chapter" data-num>' + opt('', 'પસંદ કરો', draft.chapter) + chapters.map(function (c) { return opt(c.no, c.no + '. ' + c.name, draft.chapter); }).join('') + '</select>'
           : '<input id="fq-chapter" class="input" type="number" min="1" inputmode="numeric" data-k="chapter" data-num value="' + esc(draft.chapter || '') + '" placeholder="પ્રકરણ નંબર">', 'chapter') +

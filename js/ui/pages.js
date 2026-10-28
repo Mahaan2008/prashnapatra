@@ -118,7 +118,20 @@
           : 'તમારા ઇમેઇલ અને પાસવર્ડથી લૉગિન કરો — તમારો બધો ડેટા આપોઆપ આવી જશે.') + '</p>' +
         (message || note ? '<div data-auth-msg>' + (message || '<div class="notice notice-info">' + icon('info') + '<div>' + esc(note) + '</div></div>') + '</div>' : '<div data-auth-msg></div>') +
         '<form data-auth-form novalidate>' +
+          (signup ? '<label class="field"><span class="lbl">શિક્ષકનું પૂરું નામ</span><input class="input" type="text" name="name" placeholder="દા.ત. રમેશભાઈ પટેલ" required></label>' : '') +
           '<label class="field"><span class="lbl">ઇમેઇલ</span><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></label>' +
+          (signup ?
+            '<div class="field"><span class="lbl" style="font-weight:600;margin-bottom:4px;display:block">વિષય પસંદ કરો (એક અથવા બંને પસંદ કરી શકો છો)</span>' +
+              '<div style="display:flex;gap:18px;margin-top:6px;flex-wrap:wrap">' +
+                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="subject" value="physics" checked> <span>ભૌતિક વિજ્ઞાન (Physics)</span></label>' +
+                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="subject" value="maths" checked> <span>ગણિત (Maths)</span></label>' +
+              '</div></div>' +
+            '<div class="field" style="margin-top:8px"><span class="lbl" style="font-weight:600;margin-bottom:4px;display:block">ધોરણ પસંદ કરો (એક અથવા બંને પસંદ કરી શકો છો)</span>' +
+              '<div style="display:flex;gap:18px;margin-top:6px;flex-wrap:wrap">' +
+                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="std" value="11" checked> <span>ધોરણ 11</span></label>' +
+                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="std" value="12" checked> <span>ધોરણ 12</span></label>' +
+              '</div></div>'
+          : '') +
           (forgot ? '' :
           '<label class="field"><span class="lbl">પાસવર્ડ' + (signup ? ' (ઓછામાં ઓછા 8 અક્ષર)' : '') + '</span><input class="input" type="password" name="pw" autocomplete="' + (signup ? 'new-password' : 'current-password') + '" required></label>') +
           (signup ? '<label class="field"><span class="lbl">પાસવર્ડ ફરી લખો</span><input class="input" type="password" name="pw2" autocomplete="new-password" required></label>' : '') +
@@ -129,7 +142,7 @@
           (mode !== 'login' ? '<button type="button" class="linkish" data-mode="login">લૉગિન પર પાછા જાઓ</button>' : '') +
           (mode === 'login' ? '<button type="button" class="linkish" data-mode="forgot">પાસવર્ડ ભૂલી ગયા?</button><button type="button" class="linkish" data-mode="signup">નવું એકાઉન્ટ બનાવો</button>' : '') +
         '</div></div></div>';
-      var first = el.querySelector('[name=email]'); if (first) first.focus();
+      var first = el.querySelector('[name=name]') || el.querySelector('[name=email]'); if (first) first.focus();
     }
     function show(cls, text) {
       el.querySelector('[data-auth-msg]').innerHTML = '<div class="notice notice-' + cls + '">' + icon(cls === 'error' ? 'error' : cls === 'ok' ? 'ok' : 'info') + '<div>' + esc(text) + '</div></div>';
@@ -154,12 +167,22 @@
       var pw = f.pw.value;
       if (!pw) return show('error', 'પાસવર્ડ લખો.');
       if (mode === 'signup') {
+        var name = (f.name && f.name.value.trim()) || '';
+        if (!name) return show('error', 'કૃપા કરીને શિક્ષકનું પૂરું નામ લખો.');
+        var subEls = f.querySelectorAll('input[name=subject]:checked');
+        var subjects = Array.from(subEls).map(function (c) { return c.value; });
+        if (!subjects.length) return show('error', 'ઓછામાં ઓછો એક વિષય પસંદ કરવો જરૂરી છે.');
+        var stdEls = f.querySelectorAll('input[name=std]:checked');
+        var standards = Array.from(stdEls).map(function (c) { return parseInt(c.value, 10); });
+        if (!standards.length) return show('error', 'ઓછામાં ઓછું એક ધોરણ પસંદ કરવું જરૂરી છે.');
+
         if (pw.length < 8) return show('error', 'પાસવર્ડ ઓછામાં ઓછા 8 અક્ષરનો રાખો.');
         if (pw !== f.pw2.value) return show('error', 'બંને પાસવર્ડ સરખા નથી.');
         btn.disabled = true;
-        return QPG.auth.signUp(email, pw).then(function (r) {
+        return QPG.auth.signUp(email, pw, { name: name, subjects: subjects, standards: standards }).then(function (r) {
           if (r.session) return QPG.app.afterLogin();
-          mode = 'login'; draw('<div class="notice notice-ok">' + icon('ok') + '<div>એકાઉન્ટ બન્યું. <b>' + esc(email) + '</b> પર ઇમેઇલ મોકલ્યો છે — એમાં <b>Confirm your mail</b> લિંક ખોલો, પછી અહીં લૉગિન કરો. (ઇમેઇલ ન દેખાય તો Spam જુઓ.)</div></div>');
+          mode = 'login';
+          draw('<div class="notice notice-ok">' + icon('ok') + '<div>એકાઉન્ટ નોંધાઈ ગયું છે!<br>તમારું એકાઉન્ટ મુખ્ય ઍડમિન (<b>mahaanthakkar2008@gmail.com</b>) ની મંજૂરી (Approval) માટે મોકલાયું છે. ઍડમિન મંજૂર કરશે તે પછી જ તમે લૉગિન કરી શકશો.</div></div>');
           el.querySelector('[name=email]').value = email;
         }, function (err) { show('error', err.message); btn.disabled = false; });
       }
@@ -183,6 +206,47 @@
     });
   };
 
+  function adminApprovalsPanel() {
+    if (!QPG.app || !QPG.app.isAdmin || !QPG.app.isAdmin()) return '';
+    var list = QPG.approvals ? QPG.approvals.getAll() : {};
+    var emails = Object.keys(list);
+
+    var rows = emails.map(function (em) {
+      var u = list[em];
+      var subs = (u.subjects || []).map(function (s) { return s === 'physics' ? 'Physics' : s === 'maths' ? 'ગણિત' : s; }).join(', ') || '—';
+      var stds = (u.standards || []).map(function (s) { return 'ધોરણ ' + s; }).join(', ') || '—';
+      var isApproved = !!u.approved;
+      var statusBadge = isApproved
+        ? '<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block">🟢 મંજૂર થયેલ</span>'
+        : '<span style="background:#eab308;color:#000;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block">🟡 મંજૂરી બાકી</span>';
+
+      var actBtn = isApproved
+        ? '<button type="button" class="btn btn-quiet btn-sm" data-admin-act="revoke" data-email="' + esc(em) + '" style="color:var(--red)">' + icon('trash') + 'મંજૂરી રદ</button>'
+        : '<button type="button" class="btn btn-primary btn-sm" data-admin-act="approve" data-email="' + esc(em) + '">' + icon('ok') + 'Approve કરો</button>';
+
+      return '<tr style="border-bottom:1px solid var(--border)">' +
+        '<td style="padding:10px 8px"><b>' + esc(u.name || em.split('@')[0]) + '</b><br><small style="color:var(--muted)">' + esc(em) + '</small></td>' +
+        '<td style="padding:10px 8px">' + esc(subs) + '</td>' +
+        '<td style="padding:10px 8px">' + esc(stds) + '</td>' +
+        '<td style="padding:10px 8px">' + statusBadge + '</td>' +
+        '<td style="padding:10px 8px"><div style="display:flex;gap:6px;flex-wrap:wrap">' + actBtn +
+          '<button type="button" class="btn btn-quiet btn-sm" data-admin-act="delete" data-email="' + esc(em) + '" style="color:var(--red)">' + icon('trash') + 'કાઢો</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+
+    return '<section class="panel" data-admin-panel style="border: 2px solid var(--accent); background: rgba(59,130,246,0.03); margin-bottom: 20px">' +
+      '<h2 style="color:var(--accent);display:flex;align-items:center;gap:8px">👑 મુખ્ય ઍડમિન પેનલ — શિક્ષકોની મંજૂરી (User Approvals)</h2>' +
+      '<p style="margin-top:0">મુખ્ય ઍડમિન તરીકે (<b>mahaanthakkar2008@gmail.com</b>) તમે નવા નોંધાયેલા શિક્ષકોને Approve કે રદ કરી શકો છો. માત્ર Approve થયેલા શિક્ષકો જ લૉગિન કરી શકશે.</p>' +
+      (emails.length === 0
+        ? '<div style="padding:14px;background:var(--bg);border-radius:8px;text-align:center;color:var(--muted);border:1px dashed var(--border)">હજુ સુધી કોઈ શિક્ષકે સાઇન-અપ કર્યું નથી.</div>'
+        : '<div style="overflow-x:auto"><table style="width:100%;text-align:left;border-collapse:collapse;font-size:14.5px">' +
+            '<thead><tr style="border-bottom:2px solid var(--border);color:var(--muted)"><th style="padding:8px">શિક્ષક</th><th style="padding:8px">વિષય</th><th style="padding:8px">ધોરણ</th><th style="padding:8px">સ્થિતિ</th><th style="padding:8px">ક્રિયાઓ</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table></div>') +
+    '</section>';
+  }
+
   QPG.views.settings = function (el) {
     var app = QPG.app;
     var qs = app.state.questions;
@@ -190,6 +254,7 @@
 
     el.innerHTML =
       '<div class="page-head"><div><h1>ટેમ્પ્લેટ અને સેટિંગ્સ</h1><p>સિંક, પેપરના ફોર્મેટમાં સંસ્થાનું નામ, લોગો અને લખાણ, બેકઅપ.</p></div></div>' +
+      adminApprovalsPanel() +
       accountPanel() +
       app.templateList().map(templatePanel).join('') +
       '<section class="panel"><h2>બેકઅપ ફાઇલ</h2>' +
@@ -320,6 +385,39 @@
     });
 
     el.addEventListener('click', function (e) {
+      var adm = e.target.closest('[data-admin-act]');
+      if (adm) {
+        var act = adm.getAttribute('data-admin-act');
+        var tEmail = adm.getAttribute('data-email');
+        if (act === 'approve') {
+          QPG.approvals.approveUser(tEmail);
+          QPG.ui.toast(tEmail + ' ને Approve કર્યા!');
+          app.rerender();
+          return;
+        }
+        if (act === 'revoke') {
+          QPG.approvals.revokeUser(tEmail);
+          QPG.ui.toast(tEmail + ' ની મંજૂરી રદ કરી.');
+          app.rerender();
+          return;
+        }
+        if (act === 'delete') {
+          QPG.ui.confirmDialog({
+            title: tEmail + ' ને કાઢી નાખવા છે?',
+            body: 'આ શિક્ષકનું એકાઉન્ટ લિસ્ટમાંથી દૂર થઈ જશે.',
+            ok: 'હા, કાઢો',
+            danger: true
+          }).then(function (yes) {
+            if (yes) {
+              QPG.approvals.rejectUser(tEmail);
+              QPG.ui.toast(tEmail + ' ને દૂર કરવામાં આવ્યા.');
+              app.rerender();
+            }
+          });
+          return;
+        }
+      }
+
       var del = e.target.closest('[data-logo-del]');
       if (del) {
         var tid = del.closest('[data-tpl]').getAttribute('data-tpl');

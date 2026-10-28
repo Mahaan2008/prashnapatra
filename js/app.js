@@ -30,7 +30,63 @@
     },
     go: null, // set below
 
+    isAdmin: function () {
+      var u = QPG.auth && QPG.auth.user();
+      if (!u || !u.email) return false;
+      return u.email.toLowerCase().trim() === 'mahaanthakkar2008@gmail.com';
+    },
+
+    userSubjects: function () {
+      if (app.isAdmin()) return ['physics', 'maths'];
+      var u = QPG.auth && QPG.auth.user();
+      if (!u) return ['physics', 'maths'];
+      var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
+      var subs = reg.subjects || u.subjects || [];
+      return Array.isArray(subs) && subs.length ? subs : ['physics'];
+    },
+
+    userStandards: function () {
+      if (app.isAdmin()) return [11, 12];
+      var u = QPG.auth && QPG.auth.user();
+      if (!u) return [11, 12];
+      var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
+      var stds = reg.standards || u.standards || [];
+      return Array.isArray(stds) && stds.length ? stds.map(Number) : [11];
+    },
+
+    userQuestions: function () {
+      var all = state.questions || [];
+      if (app.isAdmin()) return all;
+      var allowedSubs = app.userSubjects();
+      var allowedStds = app.userStandards();
+      return all.filter(function (q) {
+        var subOk = allowedSubs.indexOf(q.subject) >= 0;
+        var stdOk = allowedStds.indexOf(Number(q.std)) >= 0;
+        return subOk && stdOk;
+      });
+    },
+
+    userPapers: function (papers) {
+      if (app.isAdmin()) return papers || [];
+      var allowedSubs = app.userSubjects();
+      var allowedStds = app.userStandards();
+      return (papers || []).filter(function (p) {
+        var subOk = allowedSubs.indexOf(p.subject) >= 0;
+        var pStd = p.meta && p.meta.std ? Number(p.meta.std) : (p.std ? Number(p.std) : null);
+        var stdOk = !pStd || allowedStds.indexOf(pStd) >= 0;
+        return subOk && stdOk;
+      });
+    },
+
     templateList: function () { return QPG.templates.list(state.templateOverrides); },
+    userTemplates: function () {
+      var list = app.templateList();
+      if (app.isAdmin()) return list;
+      var allowedSubs = app.userSubjects();
+      return list.filter(function (t) {
+        return !t.subject || allowedSubs.indexOf(t.subject) >= 0;
+      });
+    },
     template: function (id) { return QPG.templates.get(id, state.templateOverrides); },
 
     /** Question lookup for a paper: the live question, or the copy saved with the paper. */

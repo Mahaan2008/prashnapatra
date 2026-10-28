@@ -74,9 +74,22 @@
     var claims = decodeJwt(r.access_token) || {};
     var exp = Number(r.expires_at) || claims.exp || (Math.floor(Date.now() / 1000) + (Number(r.expires_in) || 3600));
     var u = r.user || {};
+    var email = (u.email || claims.email || '').toLowerCase().trim();
+    var meta = u.user_metadata || claims.user_metadata || {};
+    var isAdmin = email === 'mahaanthakkar2008@gmail.com';
+    var regUser = (QPG.approvals && QPG.approvals.getUser(email)) || {};
+
     return {
       access_token: r.access_token, refresh_token: r.refresh_token, expires_at: exp,
-      user: { id: u.id || claims.sub, email: u.email || claims.email || '' }
+      user: {
+        id: u.id || claims.sub,
+        email: email,
+        name: isAdmin ? 'મુખ્ય ઍડમિન (Admin)' : (meta.name || regUser.name || email.split('@')[0]),
+        role: isAdmin ? 'admin' : 'teacher',
+        approved: isAdmin ? true : (meta.approved === true || regUser.approved === true),
+        subjects: isAdmin ? ['physics', 'maths'] : (regUser.subjects || meta.subjects || ['physics']),
+        standards: isAdmin ? [11, 12] : (regUser.standards || meta.standards || [11])
+      }
     };
   }
 
@@ -153,19 +166,59 @@
     },
 
     signIn: function (email, password) {
-      return call('POST', '/token?grant_type=password', { email: String(email).trim(), password: password })
-        .then(function (r) { var s = fromTokens(r); return save(s).then(function () { return s; }); });
+      var em = String(email || '').trim().toLowerCase();
+      var isAdmin = em === 'mahaanthakkar2008@gmail.com';
+
+      return call('POST', '/token?grant_type=password', { email: em, password: password })
+        .then(function (r) {
+          if (!isAdmin) {
+            var isAppr = (QPG.approvals && QPG.approvals.isApproved(em, r.user));
+            if (!isAppr) {
+              if (r.access_token) {
+                try { call('POST', '/logout?scope=local', null, r.access_token); } catch (e) {}
+              }
+              throw authError('pending_approval', 'તમારું એકાઉન્ટ હજુ ઍડમિન દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. કૃપા કરીને મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) નો સંપર્ક કરો.');
+            }
+          }
+          var s = fromTokens(r);
+          return save(s).then(function () { return s; });
+        });
     },
 
-    /** New account. Resolves {session} when no email check is needed, else {confirm: true}. */
-    signUp: function (email, password) {
+    /** New account with selected subjects & standards. */
+    signUp: function (email, password, extraData) {
       var redirect = appUrl();
-      return call('POST', '/signup' + (redirect ? '?redirect_to=' + encodeURIComponent(redirect) : ''), { email: String(email).trim(), password: password })
+      var em = String(email || '').trim().toLowerCase();
+      var isAdmin = em === 'mahaanthakkar2008@gmail.com';
+      var userMeta = Object.assign({
+        name: extraData && extraData.name ? extraData.name : em.split('@')[0],
+        subjects: extraData && extraData.subjects ? extraData.subjects : ['physics'],
+        standards: extraData && extraData.standards ? extraData.standards : [11],
+        approved: isAdmin ? true : false,
+        role: isAdmin ? 'admin' : 'teacher'
+      }, extraData || {});
+
+      var body = {
+        email: em,
+        password: password,
+        data: userMeta
+      };
+
+      return call('POST', '/signup' + (redirect ? '?redirect_to=' + encodeURIComponent(redirect) : ''), body)
         .then(function (r) {
-          if (r.access_token) { var s = fromTokens(r); return save(s).then(function () { return { session: s }; }); }
+          if (QPG.approvals) {
+            QPG.approvals.registerPending(Object.assign({ email: em }, userMeta));
+          }
+          if (r.access_token) {
+            if (!isAdmin && !userMeta.approved) {
+              return { confirm: false, pendingApproval: true, email: em };
+            }
+            var s = fromTokens(r);
+            return save(s).then(function () { return { session: s }; });
+          }
           if (r.user && Array.isArray(r.user.identities) && !r.user.identities.length) throw authError('user_already_exists', MESSAGES.user_already_exists);
           if (r.id && Array.isArray(r.identities) && !r.identities.length) throw authError('user_already_exists', MESSAGES.user_already_exists);
-          return { confirm: true };
+          return { confirm: true, pendingApproval: !isAdmin, email: em };
         });
     },
 

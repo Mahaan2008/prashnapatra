@@ -21,6 +21,13 @@
     /* ---------- step 1: source + defaults ---------- */
     function drawStep1() {
       var d = st.defaults;
+      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths'];
+      var allowedStds = app.userStandards ? app.userStandards() : [11, 12];
+      var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
+      var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
+      if (allowedSubs.indexOf(d.subject) === -1 && subList.length) d.subject = subList[0].id;
+      if (allowedStds.indexOf(Number(d.std)) === -1 && stdList.length) d.std = stdList[0];
+
       var chapters = QPG.syllabus.chapters(d.subject, d.std);
       step1.innerHTML =
         '<section class="panel"><h2>1. ક્યાંથી?</h2><div class="seg seg-wrap" role="tablist">' +
@@ -38,8 +45,8 @@
               '<button type="button" class="btn btn-primary" data-act="read-paste" style="margin-top:10px">' + icon('search') + 'પ્રશ્નો શોધો</button>') +
         '</section>' +
         '<section class="panel"><h2>2. ફાઇલમાં ન લખ્યું હોય તો</h2><p class="muted-p">ફાઇલની કૉલમમાં વિષય, પ્રકરણ, ગુણ લખેલા હોય તો એ જ લેવાશે; નહીં તો આ મૂલ્ય વપરાશે.</p><div class="row row-4">' +
-          '<label class="field"><span class="lbl">વિષય</span><select class="input" data-d="subject">' + QPG.syllabus.SUBJECTS.map(function (s) { return opt(s.id, s.gu, d.subject); }).join('') + '</select></label>' +
-          '<label class="field"><span class="lbl">ધોરણ</span><select class="input" data-d="std">' + QPG.syllabus.STANDARDS.map(function (s) { return opt(s, 'ધોરણ ' + s, d.std); }).join('') + '</select></label>' +
+          '<label class="field"><span class="lbl">વિષય</span><select class="input" data-d="subject">' + subList.map(function (s) { return opt(s.id, s.gu, d.subject); }).join('') + '</select></label>' +
+          '<label class="field"><span class="lbl">ધોરણ</span><select class="input" data-d="std">' + stdList.map(function (s) { return opt(s, 'ધોરણ ' + s, d.std); }).join('') + '</select></label>' +
           '<label class="field"><span class="lbl">પ્રકરણ</span><select class="input" data-d="chapter">' + opt('', '— પસંદ કરો —', d.chapter) + chapters.map(function (c) { return opt(c.no, c.no + '. ' + c.name, d.chapter); }).join('') + '</select></label>' +
           '<label class="field"><span class="lbl">ગુણ</span><input class="input" type="number" min="0.5" step="0.5" data-d="marks" value="' + esc(d.marks) + '" placeholder="મથાળા/કૉલમ પરથી"></label>' +
           '<label class="field"><span class="lbl">પ્રકાર</span><select class="input" data-d="type">' + opt('auto', 'આપોઆપ ઓળખો', d.type) + S.TYPES.map(function (t) { return opt(t.id, t.gu, d.type); }).join('') + '</select></label>' +

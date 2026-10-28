@@ -20,11 +20,16 @@
 
   function filtersHtml(f, facets) {
     var S = QPG.schema;
+    var allowedSubs = QPG.app && QPG.app.userSubjects ? QPG.app.userSubjects() : ['physics', 'maths'];
+    var allowedStds = QPG.app && QPG.app.userStandards ? QPG.app.userStandards() : [11, 12];
+    var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
+    var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
+
     return '' +
       '<div class="field"><label for="f-subject">વિષય</label><select id="f-subject" class="input" data-f="subject">' +
-        opt('', 'બધા વિષય', f.subject) + QPG.syllabus.SUBJECTS.map(function (s) { return opt(s.id, s.gu, f.subject); }).join('') + '</select></div>' +
+        (subList.length > 1 ? opt('', 'બધા વિષય', f.subject) : '') + subList.map(function (s) { return opt(s.id, s.gu, f.subject); }).join('') + '</select></div>' +
       '<div class="field"><label for="f-std">ધોરણ</label><select id="f-std" class="input" data-f="std">' +
-        opt('', 'બધાં ધોરણ', f.std) + QPG.syllabus.STANDARDS.map(function (s) { return opt(s, 'ધોરણ ' + s, f.std); }).join('') + '</select></div>' +
+        (stdList.length > 1 ? opt('', 'બધાં ધોરણ', f.std) : '') + stdList.map(function (s) { return opt(s, 'ધોરણ ' + s, f.std); }).join('') + '</select></div>' +
       '<div class="field"><label for="f-chapter">પ્રકરણ</label><select id="f-chapter" class="input" data-f="chapter"' + (f.subject ? '' : ' disabled') + '>' + chapterOptions(f) + '</select></div>' +
       '<div class="field"><label for="f-type">પ્રકાર</label><select id="f-type" class="input" data-f="type">' +
         opt('', 'બધા પ્રકાર', f.type) + S.TYPES.map(function (t) { return opt(t.id, t.gu, f.type); }).join('') + '</select></div>' +
@@ -97,7 +102,8 @@
     }
 
     function drawFilters() {
-      filtersEl.innerHTML = filtersHtml(f, QPG.filters.facets(state.questions));
+      var all = QPG.app && QPG.app.userQuestions ? QPG.app.userQuestions() : state.questions;
+      filtersEl.innerHTML = filtersHtml(f, QPG.filters.facets(all));
     }
 
     function criteria() {
@@ -114,7 +120,7 @@
     }
 
     function drawList() {
-      var all = state.questions;
+      var all = QPG.app && QPG.app.userQuestions ? QPG.app.userQuestions() : state.questions;
       var list = QPG.filters.sortQuestions(QPG.filters.filterQuestions(all, criteria()));
       var n = activeFilterCount();
       el.querySelector('[data-act="toggle"]').innerHTML = icon('filter') + 'ફિલ્ટર' + (n ? ' (' + n + ')' : '');

@@ -8,9 +8,10 @@
 
   QPG.views.newPaper = function (el) {
     var app = QPG.app, T = QPG.templates;
-    var templates = app.templateList();
+    var templates = app.userTemplates ? app.userTemplates() : app.templateList();
+    var defaultId = templates[0] ? templates[0].id : '';
     var st = {
-      templateId: (app.state.lastTemplateId && app.template(app.state.lastTemplateId)) ? app.state.lastTemplateId : templates[0].id,
+      templateId: (app.state.lastTemplateId && templates.some(function (t) { return t.id === app.state.lastTemplateId; })) ? app.state.lastTemplateId : defaultId,
       chapters: null, sets: 1, mode: 'auto', avoidUsed: true,
       title: '', examName: '', paperLabel: '', date: '', duration: '', totalMarks: '', sections: null
     };
@@ -18,7 +19,9 @@
     function tpl() { return app.template(st.templateId); }
     function resetFromTemplate() {
       var t = tpl();
-      var counts = QPG.filters.chapterCounts(app.state.questions, t.subject, t.std);
+      if (!t) return;
+      var questions = app.userQuestions ? app.userQuestions() : app.state.questions;
+      var counts = QPG.filters.chapterCounts(questions, t.subject, t.std);
       st.chapters = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
       st.title = t.paperLabel || '';
       st.examName = t.examName || ''; st.paperLabel = t.paperLabel || '';
@@ -29,7 +32,9 @@
 
     function available(sec) {
       var t = tpl();
-      return app.state.questions.filter(function (q) {
+      if (!t) return 0;
+      var questions = app.userQuestions ? app.userQuestions() : app.state.questions;
+      return questions.filter(function (q) {
         return q.subject === t.subject && Number(q.std) === Number(t.std) && st.chapters.indexOf(Number(q.chapter)) >= 0 &&
           Number(q.marks) === Number(sec.marks) && sec.types.indexOf(q.type) >= 0 &&
           (!st.avoidUsed || !(q.usage || []).length);
@@ -61,7 +66,12 @@
 
     function drawChapters() {
       var t = tpl();
-      var counts = QPG.filters.chapterCounts(app.state.questions, t.subject, t.std);
+      if (!t) {
+        $('[data-chapters]').innerHTML = '<div class="notice notice-error">કોઈ ફોર્મેટ ઉપલબ્ધ નથી.</div>';
+        return;
+      }
+      var questions = app.userQuestions ? app.userQuestions() : app.state.questions;
+      var counts = QPG.filters.chapterCounts(questions, t.subject, t.std);
       var list = QPG.syllabus.chapters(t.subject, t.std);
       var total = Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0);
       $('[data-chapters]').innerHTML =
