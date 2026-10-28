@@ -8,6 +8,6 @@
     SUPABASE_URL: 'https://ujvepmswpraqbpsnwmtl.supabase.co',
     SUPABASE_KEY: 'sb_publishable_aY78IsFJNOFTB1zbwlwA7Q_3pPgZrJj',
     // Web address of the app once it is online (used in the "join" link). Empty = the current address.
-    APP_URL: 'https://mahaan2008.github.io/prashnapatra/'
+    APP_URL: 'https://prashnapatra.vercel.app/'
   };
 })(typeof self !== 'undefined' ? self : this);
