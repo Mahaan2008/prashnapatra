@@ -1,12 +1,12 @@
 /* Offline support: keeps the app files on the device so it opens without internet.
    Bump VERSION whenever app files change, so phones pick up the new version. */
-var VERSION = 'qpg-0.5.1';
+var VERSION = 'qpg-0.6.0';
 var FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'css/paper.css',
   'vendor/katex/katex.min.css', 'vendor/katex/katex.min.js', 'vendor/katex/contrib/auto-render.min.js',
   'js/core/gujarati.js', 'js/core/syllabus.js', 'js/core/schema.js', 'js/core/filters.js', 'js/core/templates.js', 'js/core/assembly.js', 'js/core/backup.js', 'js/core/sync-core.js', 'js/core/importer.js',
   'js/import/legacy.js', 'js/import/zip.js', 'js/import/omml.js', 'js/import/sheet.js', 'js/import/docx.js', 'js/import/files.js',
-  'js/data/db.js', 'js/data/config.js', 'js/data/sync.js', 'js/data/demo-questions.js', 'js/render/math.js', 'js/render/question-html.js', 'js/render/paper-render.js', 'js/render/pdf-export.js',
+  'js/data/db.js', 'js/data/config.js', 'js/data/auth.js', 'js/data/sync.js', 'js/data/demo-questions.js', 'js/render/math.js', 'js/render/question-html.js', 'js/render/paper-render.js', 'js/render/pdf-export.js',
   'js/ui/ui.js', 'js/ui/dashboard.js', 'js/ui/question-bank.js', 'js/ui/question-form.js', 'js/ui/pages.js', 'js/ui/paper-wizard.js', 'js/ui/paper-editor.js', 'js/ui/paper-view.js', 'js/ui/import-view.js', 'js/app.js',
   'vendor/html-to-image/html-to-image.js', 'vendor/jspdf/jspdf.umd.min.js', 'samples/prashno-namuno.xlsx', 'samples/prashno-namuno.csv',
   'icons/icon-192.png', 'icons/icon-512.png', 'assets/logo-maths.png',

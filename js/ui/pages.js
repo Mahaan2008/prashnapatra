@@ -31,137 +31,155 @@
         '<span class="hint" style="color:var(--muted);font-size:14px">નવાં પેપરમાં લાગુ થશે. બનેલાં પેપરની વિગત પેપરમાં જ બદલી શકાય છે.</span></div></section>';
   }
 
-  /* ---------- automatic sync ---------- */
+  /* ---------- account + automatic sync ---------- */
   var STATUS_TEXT = {
     ok: 'ચાલુ — બધું સિંક થયેલું છે', syncing: 'સિંક થાય છે…', offline: 'ઑફલાઇન — નેટ આવતાં જ સિંક થશે',
-    error: 'અટક્યું — ફરી પ્રયત્ન થશે', badkey: 'બંધ — કી ક્લાઉડમાં મળી નથી'
+    error: 'અટક્યું — ફરી પ્રયત્ન થશે', signedout: 'ફરી લૉગિન કરવું પડશે', off: 'બંધ'
   };
 
-  function syncPanel() {
-    return '<section class="panel" data-sync-panel><h2>આપોઆપ સિંક — ફોન અને લેપટોપમાં એક જ ડેટા</h2><div data-sync-body></div></section>';
+  function accountPanel() {
+    return '<section class="panel" data-account-panel><h2>તમારું એકાઉન્ટ અને આપોઆપ સિંક</h2><div data-account-body></div></section>';
   }
 
-  function drawSync(box, s) {
-    var S = QPG.sync;
-    if (!S.available()) {
-      box.innerHTML = '<p style="margin:0">આ નમૂના (preview) માં સિંક બંધ છે. ઓનલાઇન મૂકેલી એપમાં કે લેપટોપની એપમાં સિંક ચાલુ કરી શકાય છે.</p>';
+  function drawAccount(box, s) {
+    var u = QPG.auth.user();
+    if (!QPG.sync.available() || !u) {
+      box.innerHTML = '<p style="margin:0">' + (root.QPG_PREVIEW ? 'આ નમૂના (preview) માં લૉગિન અને સિંક બંધ છે.' : 'લૉગિન કર્યું નથી.') + '</p>';
       return;
     }
-    if (s.status === 'off') {
-      if (box.getAttribute('data-mode') === 'off') return;   // keep what the user is typing
-      box.setAttribute('data-mode', 'off');
-      box.innerHTML =
-        '<p style="margin-top:0">સિંક ચાલુ કરશો એટલે પ્રશ્નો, પેપર અને ફોર્મેટ ક્લાઉડમાં સચવાશે અને તમારાં બધાં ઉપકરણોમાં આપોઆપ સરખાં રહેશે. ' +
-        'ઇન્ટરનેટ ન હોય ત્યારે પણ એપ ચાલે છે — નેટ આવતાં જ ફેરફાર મોકલાય છે.</p>' +
-        '<div class="row row-2">' +
-          '<div><h3 style="margin:0 0 6px;font-size:16px">પહેલું ઉપકરણ</h3>' +
-            '<p style="margin:0 0 10px;font-size:14.5px;color:var(--muted)">જે ઉપકરણમાં તમારા બધા પ્રશ્નો છે (દા.ત. લેપટોપ) ત્યાં આ દબાવો.</p>' +
-            '<button type="button" class="btn btn-primary" data-act="sync-start">' + icon('upload') + 'સિંક ચાલુ કરો</button></div>' +
-          '<div><h3 style="margin:0 0 6px;font-size:16px">બીજું ઉપકરણ જોડો</h3>' +
-            '<p style="margin:0 0 10px;font-size:14.5px;color:var(--muted)">પહેલા ઉપકરણમાંથી મોકલેલી લિંક ખોલો, અથવા સિંક કી અહીં પેસ્ટ કરો.</p>' +
-            '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" data-sync-input style="flex:1 1 220px;min-width:0" placeholder="XXXX-XXXX-XXXX-…" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
-            '<button type="button" class="btn" data-act="sync-join">જોડો</button></div></div>' +
-        '</div><div data-sync-msg style="margin-top:12px"></div>';
-      return;
-    }
-    box.setAttribute('data-mode', 'on');
-    var key = S.key(), link = S.link();
     var state = '<dl class="kv">' +
-      '<dt>સ્થિતિ</dt><dd><b>' + esc(STATUS_TEXT[s.status] || s.status) + '</b>' + (s.text && s.status !== 'ok' ? '<br><span style="font-size:14px">' + esc(s.text) + '</span>' : '') + '</dd>' +
+      '<dt>લૉગિન</dt><dd><b>' + esc(u.email) + '</b></dd>' +
+      '<dt>સિંક</dt><dd><b>' + esc(STATUS_TEXT[s.status] || s.status) + '</b>' + (s.text && s.status !== 'ok' ? '<br><span style="font-size:14px">' + esc(s.text) + '</span>' : '') + '</dd>' +
       '<dt>છેલ્લું સિંક</dt><dd>' + (s.lastAt ? esc(new Date(s.lastAt).toLocaleString('gu-IN', { dateStyle: 'medium', timeStyle: 'short' })) : 'હજુ થયું નથી') + '</dd>' +
       '<dt>મોકલવાના બાકી ફેરફાર</dt><dd>' + (s.pending || 0) + '</dd></dl>';
-    var stateBox = box.querySelector('[data-sync-state]');
-    if (stateBox && box.getAttribute('data-key') === key) { stateBox.innerHTML = state; return; }
-    box.setAttribute('data-key', key);
-    box.innerHTML = '<div data-sync-state>' + state + '</div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 16px">' +
-        '<button type="button" class="btn btn-primary" data-act="sync-now">' + icon('ok') + 'હમણાં સિંક કરો</button></div>' +
-      '<h3 style="margin:0 0 6px;font-size:16px">બીજું ઉપકરણ (ફોન / લેપટોપ) જોડો</h3>' +
-      '<ol class="sync-steps">' +
-        (link ? '<li>નીચેનું બટન દબાવી લિંક <b>તમારા પોતાના</b> WhatsApp (Message yourself) કે ઇમેઇલમાં મોકલો.</li><li>બીજા ઉપકરણમાં એ લિંક ખોલો અને "જોડો" દબાવો.</li>'
-              : '<li>બીજા ઉપકરણમાં એપ ખોલો → સેટિંગ્સ → "બીજું ઉપકરણ જોડો".</li><li>નીચેની સિંક કી ત્યાં પેસ્ટ કરો.</li>') +
-      '</ol>' +
+    var stateBox = box.querySelector('[data-account-state]');
+    if (stateBox) { stateBox.innerHTML = state; return; }
+    box.innerHTML = '<div data-account-state>' + state + '</div>' +
+      '<p style="margin:4px 0 14px;font-size:14.5px;color:var(--muted)">બીજા ફોન કે કમ્પ્યુટરમાં એપ ખોલી આ જ ઇમેઇલ અને પાસવર્ડથી લૉગિન કરો — તમારો બધો ડેટા આપોઆપ આવી જશે.</p>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
-        (link ? '<button type="button" class="btn" data-act="sync-share">' + icon('share') + 'જોડવાની લિંક મોકલો</button>' +
-                '<button type="button" class="btn" data-act="sync-copy-link">' + icon('copy') + 'લિંક કૉપી</button>' : '') +
-        '<button type="button" class="btn btn-quiet" data-act="sync-show-key">સિંક કી બતાવો</button></div>' +
-      '<div data-sync-key hidden style="margin-top:10px"><div class="sync-key">' + esc(QPG.syncCore.formatKey(key)) + '</div>' +
-        '<button type="button" class="btn btn-sm btn-quiet" data-act="sync-copy-key" style="margin-top:6px">' + icon('copy') + 'કી કૉપી કરો</button></div>' +
-      '<p style="margin:12px 0 0;font-size:14px;color:var(--muted)">આ કી / લિંક પાસવર્ડ જેવી છે: જેની પાસે હોય તે તમારા પ્રશ્નો જોઈ અને બદલી શકે. બીજા કોઈને ન મોકલશો.</p>' +
-      '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--rule)">' +
-        '<button type="button" class="btn btn-danger btn-sm" data-act="sync-stop">આ ઉપકરણમાં સિંક બંધ કરો</button>' +
-        '<span style="margin-left:10px;font-size:13.5px;color:var(--muted)">અહીંનો ડેટા અને ક્લાઉડનો ડેટા બંને રહેશે.</span></div>';
+        '<button type="button" class="btn btn-primary" data-act="sync-now">' + icon('ok') + 'હમણાં સિંક કરો</button>' +
+        '<button type="button" class="btn" data-act="pw-open">પાસવર્ડ બદલો</button>' +
+        '<button type="button" class="btn btn-danger" data-act="logout">લૉગઆઉટ</button></div>' +
+      '<form data-pw-form hidden style="margin-top:14px;max-width:420px">' +
+        '<label class="field"><span class="lbl">નવો પાસવર્ડ (ઓછામાં ઓછા 8 અક્ષર)</span><input class="input" type="password" name="pw" autocomplete="new-password" minlength="8" required></label>' +
+        '<label class="field"><span class="lbl">ફરી લખો</span><input class="input" type="password" name="pw2" autocomplete="new-password" minlength="8" required></label>' +
+        '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary btn-sm">પાસવર્ડ સાચવો</button><button type="button" class="btn btn-quiet btn-sm" data-act="pw-close">રદ કરો</button></div>' +
+        '<div data-pw-msg style="margin-top:8px"></div></form>';
   }
 
-  function copyText(t) {
-    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
-    var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); } finally { ta.remove(); }
-    return Promise.resolve();
-  }
+  /** Log out on this device: send what is waiting, then remove this device's copy. */
+  QPG.app_logout = function () {
+    return QPG.sync.flush().then(function (left) {
+      if (!left) return true;
+      return QPG.ui.confirmDialog({
+        title: left + ' ફેરફાર હજુ ક્લાઉડમાં ગયા નથી',
+        body: 'ઇન્ટરનેટ ચાલુ કરીને થોડી વાર પછી લૉગઆઉટ કરો, નહીં તો આ ફેરફાર જતા રહેશે. છતાં લૉગઆઉટ કરવું છે?',
+        ok: 'હા, લૉગઆઉટ', danger: true
+      });
+    }).then(function (yes) {
+      if (!yes) return false;
+      return QPG.auth.signOut().then(function () { return QPG.sync.signOut(); }).then(function () { location.reload(); return true; });
+    });
+  };
 
-  function joinMessage(counts) {
-    return 'જોડાઈ ગયું. ક્લાઉડમાં ' + (counts.questions || 0) + ' પ્રશ્નો, ' + (counts.papers || 0) + ' પેપર — આ ઉપકરણમાં આવી રહ્યાં છે.';
-  }
-
-  /** Buttons of the sync panel. Returns true when the click was handled. */
-  function syncClick(a, b, el) {
-    var S = QPG.sync, msg = function (cls, t) { var m = el.querySelector('[data-sync-msg]'); if (m) m.innerHTML = '<div class="notice notice-' + cls + '">' + icon(cls === 'error' ? 'error' : 'info') + '<div>' + esc(t) + '</div></div>'; };
-    if (a === 'sync-start') {
-      b.disabled = true;
-      S.start().then(function () { QPG.ui.toast('સિંક ચાલુ થયું'); })
-        .catch(function (e) { msg('error', 'સિંક ચાલુ થઈ શક્યું નહીં: ' + (e.message || e)); b.disabled = false; });
-      return true;
-    }
-    if (a === 'sync-join') {
-      var v = el.querySelector('[data-sync-input]').value;
-      b.disabled = true;
-      S.join(v).then(function (c) { QPG.ui.toast(joinMessage(c)); })
-        .catch(function (e) { msg('error', e.message || String(e)); b.disabled = false; });
-      return true;
-    }
-    if (a === 'sync-now') { b.disabled = true; S.now().then(function () { b.disabled = false; }); return true; }
-    if (a === 'sync-show-key') { var k = el.querySelector('[data-sync-key]'); k.hidden = !k.hidden; b.textContent = k.hidden ? 'સિંક કી બતાવો' : 'સિંક કી છુપાવો'; return true; }
-    if (a === 'sync-copy-key') { copyText(QPG.syncCore.formatKey(S.key())).then(function () { QPG.ui.toast('કી કૉપી થઈ'); }); return true; }
-    if (a === 'sync-copy-link') { copyText(S.link()).then(function () { QPG.ui.toast('લિંક કૉપી થઈ'); }); return true; }
-    if (a === 'sync-share') {
-      var text = 'પ્રશ્નપત્ર એપ — આ ઉપકરણ જોડવાની લિંક (ફક્ત મારા માટે):';
-      if (navigator.share) navigator.share({ title: 'પ્રશ્નપત્ર સિંક', text: text, url: S.link() }).catch(function () { /* cancelled */ });
-      else window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + S.link()), '_blank', 'noopener');
-      return true;
-    }
-    if (a === 'sync-stop') {
-      QPG.ui.confirmDialog({ title: 'આ ઉપકરણમાં સિંક બંધ કરવું છે?', body: 'અહીંનો ડેટા અહીં જ રહેશે અને ક્લાઉડનો ડેટા ક્લાઉડમાં. પછીથી સિંક કી / લિંકથી ફરી જોડી શકાશે. ' +
-        'જે ફેરફાર હજુ મોકલાયા નથી તે ક્લાઉડમાં નહીં જાય.', ok: 'સિંક બંધ કરો', danger: true })
-        .then(function (yes) { if (yes) S.stop().then(function () { QPG.ui.toast('આ ઉપકરણમાં સિંક બંધ થયું'); }); });
+  function accountClick(a, b, el) {
+    if (a === 'sync-now') { b.disabled = true; QPG.sync.now().then(function () { b.disabled = false; }); return true; }
+    if (a === 'pw-open') { el.querySelector('[data-pw-form]').hidden = false; el.querySelector('[data-pw-form] [name=pw]').focus(); return true; }
+    if (a === 'pw-close') { el.querySelector('[data-pw-form]').hidden = true; return true; }
+    if (a === 'logout') {
+      QPG.ui.confirmDialog({ title: 'આ ઉપકરણમાંથી લૉગઆઉટ કરવું છે?', body: 'આ ઉપકરણમાંથી ડેટા નીકળી જશે, પણ ક્લાઉડમાં સલામત રહેશે. ફરી લૉગિન કરતાં પાછો આવી જશે.', ok: 'લૉગઆઉટ', danger: true })
+        .then(function (yes) { if (yes) { b.disabled = true; QPG.app_logout().then(function (done) { if (!done) b.disabled = false; }); } });
       return true;
     }
     return false;
   }
 
-  /** #/sync?k=… — opened from the join link on another device. */
-  QPG.views.syncJoin = function (el, ctx) {
-    var S = QPG.sync, key = QPG.syncCore.parseKey((ctx.query || {}).k || '');
-    try { history.replaceState({ p: '/sync' }, '', '#/sync'); } catch (e) { /* keep the key out of the history */ }
-    var body;
-    if (!key) body = '<div class="notice notice-error">' + icon('error') + '<div>લિંક અધૂરી છે. આખી લિંક ફરીથી કૉપી કરીને ખોલો, અથવા સેટિંગ્સમાં કી પેસ્ટ કરો.</div></div>';
-    else if (!S.available()) body = '<p>આ નમૂના (preview) માં સિંક બંધ છે.</p>';
-    else if (S.key() === key) body = '<div class="notice notice-info">' + icon('ok') + '<div>આ ઉપકરણ પહેલેથી જોડાયેલું છે.</div></div>';
-    else if (S.key()) body = '<div class="notice notice-error">' + icon('warn') + '<div>આ ઉપકરણ બીજી સિંક કી સાથે જોડાયેલું છે. પહેલાં સેટિંગ્સમાં "સિંક બંધ કરો" દબાવો, પછી આ લિંક ફરી ખોલો.</div></div>';
-    else body = '<p style="margin-top:0">આ ઉપકરણને તમારા બીજા ઉપકરણ સાથે જોડવું છે? ક્લાઉડમાંના પ્રશ્નો, પેપર અને ફોર્મેટ અહીં આવશે, ' +
-      'અને અહીં પહેલેથી હોય તે પણ બીજા ઉપકરણમાં જશે (જે પછીથી સુધારાયું હોય તે રહે).</p>' +
-      '<button type="button" class="btn btn-primary" data-act="join">' + icon('ok') + 'હા, જોડો</button> ' +
-      '<a class="btn btn-quiet" href="#/settings">રદ કરો</a><div data-msg style="margin-top:12px"></div>';
-    el.innerHTML = '<div class="page-head"><div><h1>ઉપકરણ જોડો</h1><p>આપોઆપ સિંક</p></div></div><section class="panel">' + body + '</section>';
+  function passwordSubmit(form, onDone) {
+    var msg = form.querySelector('[data-pw-msg]'), pw = form.pw.value, pw2 = form.pw2.value;
+    var show = function (cls, t) { msg.innerHTML = '<div class="notice notice-' + cls + '">' + icon(cls === 'error' ? 'error' : 'ok') + '<div>' + esc(t) + '</div></div>'; };
+    if (pw.length < 8) return show('error', 'પાસવર્ડ ઓછામાં ઓછા 8 અક્ષરનો રાખો.');
+    if (pw !== pw2) return show('error', 'બંને પાસવર્ડ સરખા નથી.');
+    var btn = form.querySelector('button:not([type=button])'); btn.disabled = true;
+    QPG.auth.updatePassword(pw).then(function () { form.reset(); onDone(); }, function (e) { show('error', e.message || String(e)); })
+      .finally(function () { btn.disabled = false; });
+  }
+
+  /* ---------- login screen ---------- */
+  QPG.views.login = function (el, ctx) {
+    var mode = 'login';
+    var note = (ctx && ctx.query && ctx.query.msg) || '';
+    function draw(message) {
+      var signup = mode === 'signup', forgot = mode === 'forgot';
+      el.innerHTML = '<div class="auth-wrap"><div class="auth-card panel">' +
+        '<div class="auth-brand"><div class="brand-name">પ્રશ્નપત્ર</div><div class="brand-sub">Physics · ગણિત</div></div>' +
+        '<h1>' + (signup ? 'નવું એકાઉન્ટ બનાવો' : forgot ? 'પાસવર્ડ ભૂલી ગયા' : 'લૉગિન') + '</h1>' +
+        '<p class="auth-lead">' + (signup ? 'એક જ એકાઉન્ટથી ફોન અને લેપટોપ બંનેમાં તમારા પ્રશ્નો આપોઆપ સરખા રહેશે.'
+          : forgot ? 'તમારો ઇમેઇલ લખો — નવો પાસવર્ડ બનાવવાની લિંક મોકલીશું.'
+          : 'તમારા ઇમેઇલ અને પાસવર્ડથી લૉગિન કરો — તમારો બધો ડેટા આપોઆપ આવી જશે.') + '</p>' +
+        (message || note ? '<div data-auth-msg>' + (message || '<div class="notice notice-info">' + icon('info') + '<div>' + esc(note) + '</div></div>') + '</div>' : '<div data-auth-msg></div>') +
+        '<form data-auth-form novalidate>' +
+          '<label class="field"><span class="lbl">ઇમેઇલ</span><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></label>' +
+          (forgot ? '' :
+          '<label class="field"><span class="lbl">પાસવર્ડ' + (signup ? ' (ઓછામાં ઓછા 8 અક્ષર)' : '') + '</span><input class="input" type="password" name="pw" autocomplete="' + (signup ? 'new-password' : 'current-password') + '" required></label>') +
+          (signup ? '<label class="field"><span class="lbl">પાસવર્ડ ફરી લખો</span><input class="input" type="password" name="pw2" autocomplete="new-password" required></label>' : '') +
+          (forgot ? '' : '<label class="auth-show"><input type="checkbox" data-show-pw> પાસવર્ડ બતાવો</label>') +
+          '<button class="btn btn-primary auth-submit">' + (signup ? 'એકાઉન્ટ બનાવો' : forgot ? 'લિંક મોકલો' : 'લૉગિન') + '</button>' +
+        '</form>' +
+        '<div class="auth-links">' +
+          (mode !== 'login' ? '<button type="button" class="linkish" data-mode="login">લૉગિન પર પાછા જાઓ</button>' : '') +
+          (mode === 'login' ? '<button type="button" class="linkish" data-mode="forgot">પાસવર્ડ ભૂલી ગયા?</button><button type="button" class="linkish" data-mode="signup">નવું એકાઉન્ટ બનાવો</button>' : '') +
+        '</div></div></div>';
+      var first = el.querySelector('[name=email]'); if (first) first.focus();
+    }
+    function show(cls, text) {
+      el.querySelector('[data-auth-msg]').innerHTML = '<div class="notice notice-' + cls + '">' + icon(cls === 'error' ? 'error' : cls === 'ok' ? 'ok' : 'info') + '<div>' + esc(text) + '</div></div>';
+    }
+    draw();
     el.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-act="join"]');
-      if (!b) return;
-      b.disabled = true;
-      S.join(key).then(function (c) { QPG.ui.toast(joinMessage(c)); QPG.app.go('/settings'); })
-        .catch(function (err) {
-          b.disabled = false;
-          el.querySelector('[data-msg]').innerHTML = '<div class="notice notice-error">' + icon('error') + '<div>' + esc(err.message || err) + '</div></div>';
-        });
+      var m = e.target.closest('[data-mode]');
+      if (m) { var email = (el.querySelector('[name=email]') || {}).value || ''; mode = m.getAttribute('data-mode'); note = ''; draw(); el.querySelector('[name=email]').value = email; }
+    });
+    el.addEventListener('change', function (e) {
+      if (e.target.hasAttribute('data-show-pw')) el.querySelectorAll('input[name=pw], input[name=pw2]').forEach(function (i) { i.type = e.target.checked ? 'text' : 'password'; });
+    });
+    el.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var f = e.target, email = f.email.value.trim(), btn = f.querySelector('.auth-submit');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return show('error', 'ઇમેઇલ સરનામું બરાબર લખો.');
+      if (mode === 'forgot') {
+        btn.disabled = true;
+        return QPG.auth.recover(email).then(function () { show('ok', email + ' પર લિંક મોકલી છે. ઇમેઇલમાં લિંક ખોલી નવો પાસવર્ડ બનાવો (Spam ફોલ્ડર પણ જુઓ).'); },
+          function (err) { show('error', err.message); }).finally(function () { btn.disabled = false; });
+      }
+      var pw = f.pw.value;
+      if (!pw) return show('error', 'પાસવર્ડ લખો.');
+      if (mode === 'signup') {
+        if (pw.length < 8) return show('error', 'પાસવર્ડ ઓછામાં ઓછા 8 અક્ષરનો રાખો.');
+        if (pw !== f.pw2.value) return show('error', 'બંને પાસવર્ડ સરખા નથી.');
+        btn.disabled = true;
+        return QPG.auth.signUp(email, pw).then(function (r) {
+          if (r.session) return QPG.app.afterLogin();
+          mode = 'login'; draw('<div class="notice notice-ok">' + icon('ok') + '<div>એકાઉન્ટ બન્યું. <b>' + esc(email) + '</b> પર ઇમેઇલ મોકલ્યો છે — એમાં <b>Confirm your mail</b> લિંક ખોલો, પછી અહીં લૉગિન કરો. (ઇમેઇલ ન દેખાય તો Spam જુઓ.)</div></div>');
+          el.querySelector('[name=email]').value = email;
+        }, function (err) { show('error', err.message); btn.disabled = false; });
+      }
+      btn.disabled = true; btn.textContent = 'લૉગિન થાય છે…';
+      QPG.auth.signIn(email, pw).then(function () { return QPG.app.afterLogin(); }, function (err) {
+        show('error', err.message); btn.disabled = false; btn.textContent = 'લૉગિન';
+      });
+    });
+  };
+
+  /* ---------- after the "reset password" email link ---------- */
+  QPG.views.setPassword = function (el) {
+    el.innerHTML = '<div class="auth-wrap"><div class="auth-card panel"><h1>નવો પાસવર્ડ બનાવો</h1>' +
+      '<p class="auth-lead">' + esc((QPG.auth.user() || {}).email || '') + '</p>' +
+      '<form data-pw-form><label class="field"><span class="lbl">નવો પાસવર્ડ (ઓછામાં ઓછા 8 અક્ષર)</span><input class="input" type="password" name="pw" autocomplete="new-password" required></label>' +
+      '<label class="field"><span class="lbl">ફરી લખો</span><input class="input" type="password" name="pw2" autocomplete="new-password" required></label>' +
+      '<button class="btn btn-primary auth-submit">પાસવર્ડ સાચવો</button><div data-pw-msg style="margin-top:10px"></div></form></div></div>';
+    el.addEventListener('submit', function (e) {
+      e.preventDefault();
+      passwordSubmit(e.target, function () { QPG.ui.toast('નવો પાસવર્ડ સચવાયો'); QPG.app.go('/'); });
     });
   };
 
@@ -172,7 +190,7 @@
 
     el.innerHTML =
       '<div class="page-head"><div><h1>ટેમ્પ્લેટ અને સેટિંગ્સ</h1><p>સિંક, પેપરના ફોર્મેટમાં સંસ્થાનું નામ, લોગો અને લખાણ, બેકઅપ.</p></div></div>' +
-      syncPanel() +
+      accountPanel() +
       app.templateList().map(templatePanel).join('') +
       '<section class="panel"><h2>બેકઅપ ફાઇલ</h2>' +
         '<p style="margin-top:0">બધા પ્રશ્નો, પેપર અને ફોર્મેટ એક ફાઇલમાં સેવ થશે. સિંક ચાલુ હોય તો પણ મહિનામાં એક વાર બેકઅપ ફાઇલ બનાવી Drive / ઇમેઇલમાં રાખવી સલાહભર્યું છે.</p>' +
@@ -194,12 +212,11 @@
         '<dt>જગ્યા વપરાઈ</dt><dd data-usage>—</dd>' +
         '<dt>આવૃત્તિ</dt><dd>' + esc(app.VERSION) + '</dd>' +
       '</dl>' +
-      '<p style="margin-bottom:0;color:var(--muted);font-size:14px">' + (QPG.sync.key() ? 'ડેટા આ ઉપકરણમાં છે અને ક્લાઉડમાં સિંક થાય છે.' : 'ડેટા આ ઉપકરણમાં જ રહે છે. બીજાં ઉપકરણો સાથે સરખો રાખવા ઉપર "સિંક ચાલુ કરો".') + '</p>' +
-      '<div data-install style="margin-top:12px"></div></section>';
+      '<p style="margin-bottom:0;color:var(--muted);font-size:14px">' + (QPG.auth.user() ? 'ડેટા આ ઉપકરણમાં છે અને તમારા એકાઉન્ટમાં (ક્લાઉડમાં) સિંક થાય છે.' : 'ડેટા આ ઉપકરણમાં જ રહે છે.') + '</p></section>';
 
     if (navigator.storage && navigator.storage.persisted) {
       navigator.storage.persisted().then(function (p) {
-        el.querySelector('[data-persist]').textContent = p ? 'હા — બ્રાઉઝર જાતે ડેટા નહીં ભૂંસે' : 'ના — એપ install કરશો ત્યારે ચાલુ થશે';
+        el.querySelector('[data-persist]').textContent = p ? 'હા — બ્રાઉઝર જાતે ડેટા નહીં ભૂંસે' : 'ના — બ્રાઉઝર જગ્યા ઓછી હોય તો ભૂંસી શકે (ડેટા ક્લાઉડમાં પણ છે)';
       });
     } else el.querySelector('[data-persist]').textContent = 'માહિતી નથી';
     if (navigator.storage && navigator.storage.estimate) {
@@ -207,12 +224,9 @@
         el.querySelector('[data-usage]').textContent = (e.usage / 1048576).toFixed(1) + ' MB';
       });
     }
-    if (app.state.installPrompt) {
-      el.querySelector('[data-install]').innerHTML = '<button type="button" class="btn btn-primary" data-act="install">' + icon('download') + 'એપ install કરો</button>';
-    }
 
-    var syncBox = el.querySelector('[data-sync-body]');
-    var stopStatus = QPG.sync.onStatus(function (st) { drawSync(syncBox, st); });
+    var accBox = el.querySelector('[data-account-body]');
+    var stopStatus = QPG.sync.onStatus(function (st) { drawAccount(accBox, st); });
 
     QPG.db.getMeta('lastBackup').then(function (d) {
       var lb = el.querySelector('[data-last-backup]');
@@ -248,10 +262,10 @@
           (c.errors.length ? '<br>' + c.errors.map(esc).join('<br>') : '') +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
             '<button type="button" class="btn btn-primary btn-sm" data-act="restore-merge">આ ઉપકરણના ડેટામાં ઉમેરો</button>' +
-            (QPG.sync.key() ? '' : '<button type="button" class="btn btn-danger btn-sm" data-act="restore-replace">આ ઉપકરણનો બધો ડેટા બદલી નાખો</button>') +
+            (QPG.auth.user() ? '' : '<button type="button" class="btn btn-danger btn-sm" data-act="restore-replace">આ ઉપકરણનો બધો ડેટા બદલી નાખો</button>') +
             '<button type="button" class="btn btn-quiet btn-sm" data-act="restore-cancel">રદ કરો</button></div>' +
           '<p style="margin:8px 0 0;font-size:13.5px">"ઉમેરો" માં નવા પ્રશ્નો ઉમેરાશે અને જે પ્રશ્ન બેકઅપમાં પછીથી સુધારાયો હોય તે બદલાશે; બાકીનું એમ જ રહેશે.' +
-          (QPG.sync.key() ? ' સિંક ચાલુ છે એટલે ઉમેરેલું બીજાં ઉપકરણોમાં પણ જશે ("બધું બદલો" સિંક બંધ હોય ત્યારે જ મળે છે).' : '') + '</p></div></div>';
+          (QPG.auth.user() ? ' ઉમેરેલું તમારા એકાઉન્ટમાં જશે અને બીજાં ઉપકરણોમાં પણ દેખાશે.' : '') + '</p></div></div>';
         box._data = c.data;
       }).catch(function (e) { box.innerHTML = '<div class="notice notice-error">' + icon('error') + '<div>' + esc(e.message || e) + '</div></div>'; });
     }
@@ -316,7 +330,7 @@
       var b = e.target.closest('[data-act]');
       if (!b) return;
       var a = b.getAttribute('data-act');
-      if (a.indexOf('sync-') === 0 && syncClick(a, b, el)) return;
+      if (accountClick(a, b, el)) return;
       if (a === 'backup') { b.disabled = true; makeBackup().catch(function (err) { QPG.ui.toast('બેકઅપ બની શક્યો નહીં: ' + (err.message || err)); }).finally(function () { b.disabled = false; }); return; }
       if (a === 'restore-merge') { applyRestore('merge'); return; }
       if (a === 'restore-replace') { applyRestore('replace'); return; }
@@ -352,13 +366,12 @@
             });
           });
         });
-      } else if (b.getAttribute('data-act') === 'install' && app.state.installPrompt) {
-        app.state.installPrompt.prompt();
-        app.state.installPrompt.userChoice.finally(function () { app.state.installPrompt = null; app.rerender(); });
       }
     });
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && e.target.hasAttribute('data-sync-input')) { var j = el.querySelector('[data-act="sync-join"]'); if (j) j.click(); }
+    el.addEventListener('submit', function (e) {
+      if (!e.target.hasAttribute('data-pw-form')) return;
+      e.preventDefault();
+      passwordSubmit(e.target, function () { e.target.hidden = true; QPG.ui.toast('નવો પાસવર્ડ સચવાયો'); });
     });
     return stopStatus;
   };

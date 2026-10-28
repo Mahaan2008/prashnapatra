@@ -2,13 +2,12 @@
 (function (root) {
   'use strict';
   var QPG = root.QPG;
-  var VERSION = '0.5.0';
+  var VERSION = '0.6.0';
   var DEMO_DATE = '2026-01-01T00:00:00.000Z';
 
   var state = {
     questions: [],          // live (not deleted) questions, kept in memory
     bankFilters: { demo: 'any', used: 'any' },
-    installPrompt: null,
     templateOverrides: {}
   };
 
@@ -74,11 +73,14 @@
     { re: /^\/papers\/view\/(.+)$/, view: 'paperView', nav: 'papers', title: 'પેપર જુઓ' },
     { re: /^\/import$/, view: 'importView', nav: 'import', title: 'પ્રશ્નો Import' },
     { re: /^\/settings$/, view: 'settings', nav: 'more', title: 'ટેમ્પ્લેટ અને સેટિંગ્સ' },
-    { re: /^\/sync$/, view: 'syncJoin', nav: 'more', title: 'સિંક જોડો' }
+    { re: /^\/sync$/, view: 'settings', nav: 'more', title: 'ટેમ્પ્લેટ અને સેટિંગ્સ' },
+    { re: /^\/login$/, view: 'login', nav: '', title: 'લૉગિન', open: true },
+    { re: /^\/password$/, view: 'setPassword', nav: 'more', title: 'નવો પાસવર્ડ' }
   ];
 
   /* The current path is kept in memory and mirrored to the address bar when allowed,
      so links work even where the page cannot change location.hash (embedded previews). */
+  if (QPG.auth) QPG.auth.consumeHash();   // an email link (#access_token=…) must not be read as a page
   var currentPath = (function () {
     try { return decodeURIComponent((location.hash || '#/').slice(1)) || '/'; } catch (e) { return '/'; }
   })();
@@ -117,6 +119,11 @@
     app.currentPath = currentPath;
 
     var route = ROUTES.find(function (r) { return r.re.test(loc.path); }) || ROUTES[0];
+    // not logged in: only the login screen (the preview has no login)
+    var needLogin = QPG.sync.available() && !QPG.auth.signedIn();
+    if (needLogin && !route.open) route = ROUTES.find(function (r) { return r.view === 'login'; });
+    if (!needLogin && route.view === 'login') route = ROUTES[0];
+    document.body.classList.toggle('signed-out', needLogin);
     var m = loc.path.match(route.re) || [];
     if (typeof cleanup === 'function') cleanup();
     cleanup = null;
@@ -156,7 +163,7 @@
   }
 
   var STATUS_LABEL = {
-    ok: 'સિંક ✓', syncing: 'સિંક થાય છે…', offline: 'ઑફલાઇન', error: 'સિંક અટક્યું', badkey: 'સિંક બંધ'
+    ok: 'સિંક ✓', syncing: 'સિંક થાય છે…', offline: 'ઑફલાઇન', error: 'સિંક અટક્યું', signedout: 'ફરી લૉગિન કરો'
   };
   function showSyncStatus(s) {
     document.querySelectorAll('[data-sync-chip]').forEach(function (chip) {
@@ -170,6 +177,20 @@
       chip.title = s.text || (s.lastAt ? 'છેલ્લું સિંક: ' + new Date(s.lastAt).toLocaleString('gu-IN') : '');
     });
   }
+
+  /** Right after a successful login on this device. */
+  app.afterLogin = function () {
+    return QPG.sync.begin()
+      .then(seedDemoOnce)
+      .then(app.refreshQuestions)
+      .then(function () { return QPG.db.templateOverrides().then(function (o) { state.templateOverrides = o; }); })
+      .then(function () {
+        QPG.ui.toast('લૉગિન થયું — તમારો ડેટા આવી રહ્યો છે');
+        currentPath = '/';
+        try { history.replaceState({ p: '/' }, '', '#/'); } catch (e) { /* ignore */ }
+        render();
+      });
+  };
 
   /* ---------- start-up ---------- */
   function seedDemoOnce() {
@@ -190,10 +211,18 @@
       .then(seedDemoOnce)
       .then(app.refreshQuestions)
       .then(function () { return QPG.db.templateOverrides().then(function (o) { state.templateOverrides = o; }); })
-      .then(function () {
+      .then(function () { return QPG.auth.init(); })
+      .then(function (linkResult) {
         QPG.sync.onStatus(showSyncStatus);
         QPG.sync.onRemoteChange(onRemoteChange);
-        return QPG.sync.init().catch(function () { /* sync problems never stop the app */ });
+        if (linkResult.type === 'recovery') currentPath = '/password';
+        else if (linkResult.type === 'signup' || linkResult.type === 'email') setTimeout(function () { QPG.ui.toast('ઇમેઇલ ચકાસાયો — લૉગિન થઈ ગયું'); }, 300);
+        else if (linkResult.error) currentPath = '/login?msg=' + encodeURIComponent(linkResult.error);
+        if (!QPG.auth.signedIn()) return null;
+        return QPG.sync.init().then(seedDemoOnce).then(function () {
+          // first login on this device may have replaced the local data
+          return app.refreshQuestions().then(function () { return QPG.db.templateOverrides(); }).then(function (o) { state.templateOverrides = o; });
+        }).catch(function () { /* sync problems never stop the app */ });
       })
       .then(function () {
         QPG.db.persist();
@@ -217,7 +246,8 @@
           '<br>Chrome અથવા Edge નું નવું વર્ઝન વાપરો, અને Private/Incognito વિન્ડોમાં ન ખોલો.</div></div>';
       });
 
-    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); state.installPrompt = e; });
+    // no "Install app" bar: the browser's own install offer is turned off
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); });
 
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       var hadController = !!navigator.serviceWorker.controller;
