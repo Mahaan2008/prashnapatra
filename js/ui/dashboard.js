@@ -19,8 +19,8 @@
           : '<span class="cov-zero">0</span>') + '</span></a></li>';
     }).join('');
 
-    var subIcon = subject === 'maths' ? '📐' : '⚡';
-    var stdColor = std === 11 ? '#2563eb' : '#7c3aed';
+    var subIcon = subject === 'maths' ? '📐' : subject === 'science' ? '🔬' : '⚡';
+    var stdColor = std === 8 ? '#059669' : std === 9 ? '#0891b2' : std === 10 ? '#d97706' : std === 11 ? '#2563eb' : '#7c3aed';
 
     return '<section class="panel cov-panel' + (isOpen ? ' is-open' : '') + '" data-cov-panel="' + subject + '-' + std + '" style="padding:0;overflow:hidden;border:1px solid var(--rule);margin-bottom:14px;border-radius:var(--radius)">' +
       '<button type="button" class="cov-toggle-btn" data-act="toggle-cov" data-target="' + subject + '-' + std + '" style="width:100%;text-align:left;background:none;border:none;padding:15px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;-webkit-tap-highlight-color:transparent">' +
@@ -56,24 +56,25 @@
     var isAdmin = QPG.app.isAdmin && QPG.app.isAdmin();
     var demoCount = qs.filter(function (q) { return q.isDemo; }).length;
 
-    var allowedSubs = QPG.app.userSubjects ? QPG.app.userSubjects() : ['physics', 'maths'];
-    var allowedStds = QPG.app.userStandards ? QPG.app.userStandards() : [11, 12];
+    var allowedSubs = QPG.app.userSubjects ? QPG.app.userSubjects() : ['physics', 'maths', 'science'];
+    var allowedStds = QPG.app.userStandards ? QPG.app.userStandards() : [8, 9, 10, 11, 12];
 
     var covPanels = '';
-    if (allowedSubs.indexOf('physics') >= 0) {
-      if (allowedStds.indexOf(11) >= 0) covPanels += coveragePanel('physics', 11, qs, false);
-      if (allowedStds.indexOf(12) >= 0) covPanels += coveragePanel('physics', 12, qs, false);
-    }
-    if (allowedSubs.indexOf('maths') >= 0) {
-      if (allowedStds.indexOf(11) >= 0) covPanels += coveragePanel('maths', 11, qs, false);
-      if (allowedStds.indexOf(12) >= 0) covPanels += coveragePanel('maths', 12, qs, false);
-    }
+    allowedSubs.forEach(function (sub) {
+      allowedStds.forEach(function (std) {
+        var chs = QPG.syllabus.chapters(sub, std);
+        var qCount = qs.filter(function (q) { return q.subject === sub && Number(q.std) === Number(std); }).length;
+        if (chs.length || qCount > 0) {
+          covPanels += coveragePanel(sub, std, qs, false);
+        }
+      });
+    });
 
     // Role badge
     var roleBadge = isAdmin
       ? '<span style="font-size:12px;background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:99px;font-weight:700">👑 મુખ્ય ઍડમિન (Admin)</span>'
       : '<span style="font-size:12px;background:#eff6ff;color:#1e40af;padding:3px 10px;border-radius:99px;font-weight:700">👨‍🏫 શિક્ષક (' +
-        allowedSubs.map(function (s) { return s === 'maths' ? 'Maths' : 'Physics'; }).join(', ') + ' · Std ' +
+        allowedSubs.map(function (s) { return s === 'maths' ? 'Maths' : s === 'science' ? 'Science' : 'Physics'; }).join(', ') + ' · Std ' +
         allowedStds.join(', ') + ')</span>';
 
     var welcomeBanner = u ?

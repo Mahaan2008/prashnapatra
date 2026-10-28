@@ -44,12 +44,18 @@
           name: 'મુખ્ય ઍડમિન (Admin)',
           role: 'admin',
           approved: true,
-          subjects: ['physics', 'maths'],
-          standards: [11, 12]
+          subjects: ['physics', 'maths', 'science'],
+          standards: [8, 9, 10, 11, 12]
         };
       }
       var all = approvals.getAll();
       return all[em] || null;
+    },
+
+    getApprovedTeachers: function () {
+      var all = approvals.getAll();
+      return Object.keys(all).map(function (k) { return all[k]; })
+        .filter(function (u) { return u && u.approved && u.email !== ADMIN_EMAIL; });
     },
 
     registerPending: function (userRecord) {

@@ -157,8 +157,8 @@
     }
 
     function drawWhere() {
-      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths'];
-      var allowedStds = app.userStandards ? app.userStandards() : [11, 12];
+      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths', 'science'];
+      var allowedStds = app.userStandards ? app.userStandards() : [8, 9, 10, 11, 12];
       var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
       var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
 
@@ -168,6 +168,19 @@
       var std = Number(draft.std);
       var chapters = QPG.syllabus.chapters(draft.subject, std);
       var topics = QPG.filters.facets(app.state.questions.filter(function (q) { return q.subject === draft.subject; })).topics;
+
+      var isAdmin = app.isAdmin && app.isAdmin();
+      var assignHtml = '';
+      if (isAdmin) {
+        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
+        var curAssigned = (draft.assignedTo && draft.assignedTo[0]) || 'all';
+        var tOpts = '<option value="all"' + (curAssigned === 'all' ? ' selected' : '') + '>બધા શિક્ષકો (All)</option>' +
+          teachers.map(function (t) {
+            return '<option value="' + esc(t.email) + '"' + (curAssigned === t.email ? ' selected' : '') + '>' + esc(t.name) + ' (' + esc(t.email) + ')</option>';
+          }).join('');
+        assignHtml = field('fq-assigned', 'શિક્ષકને સોંપો (Assign)', '<select id="fq-assigned" class="input" data-assign-to>' + tOpts + '</select>', 'assignedTo');
+      }
+
       $('[data-where]').innerHTML =
         field('fq-subject', 'વિષય', '<select id="fq-subject" class="input" data-k="subject">' + subList.map(function (s) { return opt(s.id, s.gu, draft.subject); }).join('') + '</select>', 'subject') +
         field('fq-std', 'ધોરણ', '<select id="fq-std" class="input" data-k="std" data-num>' + stdList.map(function (s) { return opt(s, 'ધોરણ ' + s, draft.std); }).join('') + '</select>', 'std') +
@@ -175,7 +188,8 @@
           ? '<select id="fq-chapter" class="input" data-k="chapter" data-num>' + opt('', 'પસંદ કરો', draft.chapter) + chapters.map(function (c) { return opt(c.no, c.no + '. ' + c.name, draft.chapter); }).join('') + '</select>'
           : '<input id="fq-chapter" class="input" type="number" min="1" inputmode="numeric" data-k="chapter" data-num value="' + esc(draft.chapter || '') + '" placeholder="પ્રકરણ નંબર">', 'chapter') +
         field('fq-topic', 'મુદ્દો (Topic)', '<input id="fq-topic" class="input" data-k="topic" list="fq-topics" value="' + esc(draft.topic || '') + '" placeholder="દા.ત. પ્રક્ષિપ્ત ગતિ">' +
-          '<datalist id="fq-topics">' + topics.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>', 'topic');
+          '<datalist id="fq-topics">' + topics.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>', 'topic') +
+        assignHtml;
     }
 
     function drawKind() {
@@ -309,7 +323,12 @@
     form.addEventListener('focusin', function (e) { if (e.target.hasAttribute && e.target.hasAttribute('data-math')) lastFocused = e.target; });
 
     function onValue(e) {
-      var t = e.target, k = t.getAttribute && t.getAttribute('data-k');
+      var t = e.target;
+      if (t.hasAttribute && t.hasAttribute('data-assign-to')) {
+        draft.assignedTo = t.value === 'all' ? ['all'] : [t.value];
+        return;
+      }
+      var k = t.getAttribute && t.getAttribute('data-k');
       if (!k) return;
       var v = t.value;
       if (t.hasAttribute('data-num')) v = v === '' ? '' : Number(v);

@@ -70,6 +70,37 @@
         { id: 'BC', title: 'વિભાગ-C', part: 'PART-B', print: 6, attempt: 4, marks: 4, numbering: 'continue',
           types: ['long_answer', 'proof', 'numerical', 'short_answer', 'derivation', 'case_based'], instruction: MATHS_INSTR }
       ]
+    },
+    {
+      id: 'science-standard',
+      name: 'વિજ્ઞાન — ધોરણ 10 (GSEB)',
+      subject: 'science', std: 10,
+      style: 'physics',
+      header: {
+        institute: 'આદર્શ વિદ્યાલય',
+        topText: 'શ્રી ગણેશાય નમઃ',
+        bottomText: 'વિજ્ઞાન અને ટેકનોલોજી',
+        watermark: 'વિજ્ઞાન',
+        subjectLabel: 'SCIENCE',
+        showSetLetter: true,
+        logoLeft: '', logoRight: ''
+      },
+      totalMarks: 80, duration: '3:00 hr', examName: 'વાર્ષિક પરીક્ષા', paperLabel: 'MODEL PAPER',
+      closing: '|| ALL THE BEST ||',
+      sections: [
+        { id: 'A', title: 'વિભાગ A (હેતુલક્ષી પ્રશ્નો)', part: '', print: 16, attempt: 16, marks: 1, numbering: 'restart',
+          types: ['mcq', 'very_short', 'fill_blank', 'match_columns', 'assertion_reason'],
+          instruction: 'નીચે આપેલ પ્રશ્નોના માગ્યા મુજબ ઉત્તર આપો. (પ્રત્યેકનો 1 ગુણ)' },
+        { id: 'B', title: 'વિભાગ B (ટૂંકજવાબી પ્રશ્નો)', part: '', print: 10, attempt: 10, marks: 2, numbering: 'restart',
+          types: ['short_answer', 'diagram_based', 'very_short'],
+          instruction: 'નીચે આપેલ પ્રશ્નોના આશરે 40 થી 50 શબ્દોમાં ઉત્તર લખો. (પ્રત્યેકના 2 ગુણ)' },
+        { id: 'C', title: 'વિભાગ C', part: '', print: 8, attempt: 8, marks: 3, numbering: 'restart',
+          types: ['short_answer', 'numerical', 'diagram_based', 'long_answer'],
+          instruction: 'નીચે આપેલ પ્રશ્નોના મુદ્દાસર ઉત્તર લખો. (પ્રત્યેકના 3 ગુણ)' },
+        { id: 'D', title: 'વિભાગ D (વિસ્તૃત જવાબી પ્રશ્નો)', part: '', print: 5, attempt: 5, marks: 4, numbering: 'restart',
+          types: ['long_answer', 'case_based', 'derivation', 'proof'],
+          instruction: 'નીચે આપેલ પ્રશ્નોના સવિસ્તર ઉત્તર લખો. (પ્રત્યેકના 4 ગુણ)' }
+      ]
     }
   ];
 

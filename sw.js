@@ -1,6 +1,6 @@
 /* Offline support: keeps the app files on the device so it opens without internet.
    Bump VERSION whenever app files change, so phones pick up the new version. */
-var VERSION = 'qpg-0.6.2';
+var VERSION = 'qpg-0.6.3';
 var FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'css/paper.css',
   'vendor/katex/katex.min.css', 'vendor/katex/katex.min.js', 'vendor/katex/contrib/auto-render.min.js',

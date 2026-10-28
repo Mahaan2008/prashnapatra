@@ -37,18 +37,18 @@
     },
 
     userSubjects: function () {
-      if (app.isAdmin()) return ['physics', 'maths'];
+      if (app.isAdmin()) return ['physics', 'maths', 'science'];
       var u = QPG.auth && QPG.auth.user();
-      if (!u) return ['physics', 'maths'];
+      if (!u) return ['physics', 'maths', 'science'];
       var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
       var subs = reg.subjects || u.subjects || [];
       return Array.isArray(subs) && subs.length ? subs : ['physics'];
     },
 
     userStandards: function () {
-      if (app.isAdmin()) return [11, 12];
+      if (app.isAdmin()) return [8, 9, 10, 11, 12];
       var u = QPG.auth && QPG.auth.user();
-      if (!u) return [11, 12];
+      if (!u) return [8, 9, 10, 11, 12];
       var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
       var stds = reg.standards || u.standards || [];
       return Array.isArray(stds) && stds.length ? stds.map(Number) : [11];
@@ -57,9 +57,16 @@
     userQuestions: function () {
       var all = state.questions || [];
       if (app.isAdmin()) return all;
+      var u = QPG.auth && QPG.auth.user();
+      var uEmail = u && u.email ? u.email.toLowerCase().trim() : '';
       var allowedSubs = app.userSubjects();
       var allowedStds = app.userStandards();
       return all.filter(function (q) {
+        // If assigned specifically to this teacher or 'all'
+        if (q.assignedTo && Array.isArray(q.assignedTo) && q.assignedTo.length) {
+          if (q.assignedTo.indexOf('all') >= 0 || q.assignedTo.indexOf(uEmail) >= 0) return true;
+          return false;
+        }
         var subOk = allowedSubs.indexOf(q.subject) >= 0;
         var stdOk = allowedStds.indexOf(Number(q.std)) >= 0;
         return subOk && stdOk;

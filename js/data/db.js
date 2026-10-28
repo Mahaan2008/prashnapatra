@@ -77,6 +77,17 @@
 
   /** Write records; queue them for upload when sync is on (fromSync = records that came from the cloud). */
   function write(store, values, fromSync) {
+    if (store === 'questions' && !fromSync) {
+      var u = QPG.auth && QPG.auth.user();
+      if (u && u.email) {
+        values.forEach(function (q) {
+          if (q && typeof q === 'object') {
+            if (!q.createdBy) q.createdBy = u.email;
+            if (!q.creatorName) q.creatorName = u.name || u.email.split('@')[0];
+          }
+        });
+      }
+    }
     var track = tracking && SYNCED[store] && !fromSync;
     return tx(track ? [store, 'outbox'] : store, 'readwrite', function (s, set) {
       var target = track ? s[store] : s;

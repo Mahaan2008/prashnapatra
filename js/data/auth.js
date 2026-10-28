@@ -87,8 +87,8 @@
         name: isAdmin ? 'મુખ્ય ઍડમિન (Admin)' : (meta.name || regUser.name || email.split('@')[0]),
         role: isAdmin ? 'admin' : 'teacher',
         approved: isAdmin ? true : (meta.approved === true || regUser.approved === true),
-        subjects: isAdmin ? ['physics', 'maths'] : (regUser.subjects || meta.subjects || ['physics']),
-        standards: isAdmin ? [11, 12] : (regUser.standards || meta.standards || [11])
+        subjects: isAdmin ? ['physics', 'maths', 'science'] : (regUser.subjects || meta.subjects || ['physics']),
+        standards: isAdmin ? [8, 9, 10, 11, 12] : (regUser.standards || meta.standards || [11])
       }
     };
   }

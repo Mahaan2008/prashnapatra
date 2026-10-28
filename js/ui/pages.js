@@ -111,7 +111,7 @@
     function draw(message) {
       var signup = mode === 'signup', forgot = mode === 'forgot';
       el.innerHTML = '<div class="auth-wrap"><div class="auth-card panel">' +
-        '<div class="auth-brand"><div class="brand-name">પ્રશ્નપત્ર</div><div class="brand-sub">Physics · ગણિત</div></div>' +
+        '<div class="auth-brand"><div class="brand-name" style="font-size:28px">પ્રશ્નપત્ર</div></div>' +
         '<h1>' + (signup ? 'નવું એકાઉન્ટ બનાવો' : forgot ? 'પાસવર્ડ ભૂલી ગયા' : 'લૉગિન') + '</h1>' +
         '<p class="auth-lead">' + (signup ? 'એક જ એકાઉન્ટથી ફોન અને લેપટોપ બંનેમાં તમારા પ્રશ્નો આપોઆપ સરખા રહેશે.'
           : forgot ? 'તમારો ઇમેઇલ લખો — નવો પાસવર્ડ બનાવવાની લિંક મોકલીશું.'
@@ -121,15 +121,19 @@
           (signup ? '<label class="field"><span class="lbl">શિક્ષકનું પૂરું નામ</span><input class="input" type="text" name="name" placeholder="દા.ત. રમેશભાઈ પટેલ" required></label>' : '') +
           '<label class="field"><span class="lbl">ઇમેઇલ</span><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></label>' +
           (signup ?
-            '<div class="field"><span class="lbl" style="font-weight:600;margin-bottom:4px;display:block">વિષય પસંદ કરો (એક અથવા બંને પસંદ કરી શકો છો)</span>' +
-              '<div style="display:flex;gap:18px;margin-top:6px;flex-wrap:wrap">' +
-                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="subject" value="physics" checked> <span>ભૌતિક વિજ્ઞાન (Physics)</span></label>' +
-                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="subject" value="maths" checked> <span>ગણિત (Maths)</span></label>' +
+            '<div class="field"><span class="lbl" style="font-weight:600;margin-bottom:6px;display:block">વિષય પસંદ કરો (એક અથવા વધુ પસંદ કરી શકો છો)</span>' +
+              '<div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap">' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="subject" value="physics" checked> <span>ભૌતિક વિજ્ઞાન (Physics)</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="subject" value="maths" checked> <span>ગણિત (Maths)</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="subject" value="science" checked> <span>વિજ્ઞાન (Science)</span></label>' +
               '</div></div>' +
-            '<div class="field" style="margin-top:8px"><span class="lbl" style="font-weight:600;margin-bottom:4px;display:block">ધોરણ પસંદ કરો (એક અથવા બંને પસંદ કરી શકો છો)</span>' +
-              '<div style="display:flex;gap:18px;margin-top:6px;flex-wrap:wrap">' +
-                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="std" value="11" checked> <span>ધોરણ 11</span></label>' +
-                '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="std" value="12" checked> <span>ધોરણ 12</span></label>' +
+            '<div class="field" style="margin-top:10px"><span class="lbl" style="font-weight:600;margin-bottom:6px;display:block">ધોરણ પસંદ કરો (એક અથવા વધુ પસંદ કરી શકો છો)</span>' +
+              '<div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="std" value="8"> <span>ધોરણ 8</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="std" value="9"> <span>ધોરણ 9</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="std" value="10" checked> <span>ધોરણ 10</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="std" value="11" checked> <span>ધોરણ 11</span></label>' +
+                '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="std" value="12" checked> <span>ધોરણ 12</span></label>' +
               '</div></div>'
           : '') +
           (forgot ? '' :
@@ -213,7 +217,7 @@
 
     var rows = emails.map(function (em) {
       var u = list[em];
-      var subs = (u.subjects || []).map(function (s) { return s === 'physics' ? 'Physics' : s === 'maths' ? 'ગણિત' : s; }).join(', ') || '—';
+      var subs = (u.subjects || []).map(function (s) { return s === 'physics' ? 'Physics' : s === 'maths' ? 'ગણિત' : s === 'science' ? 'વિજ્ઞાન' : s; }).join(', ') || '—';
       var stds = (u.standards || []).map(function (s) { return 'ધોરણ ' + s; }).join(', ') || '—';
       var isApproved = !!u.approved;
       var statusBadge = isApproved

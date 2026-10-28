@@ -21,8 +21,8 @@
     /* ---------- step 1: source + defaults ---------- */
     function drawStep1() {
       var d = st.defaults;
-      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths'];
-      var allowedStds = app.userStandards ? app.userStandards() : [11, 12];
+      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths', 'science'];
+      var allowedStds = app.userStandards ? app.userStandards() : [8, 9, 10, 11, 12];
       var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
       var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
       if (allowedSubs.indexOf(d.subject) === -1 && subList.length) d.subject = subList[0].id;

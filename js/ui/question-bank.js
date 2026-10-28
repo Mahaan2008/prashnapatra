@@ -20,8 +20,8 @@
 
   function filtersHtml(f, facets) {
     var S = QPG.schema;
-    var allowedSubs = QPG.app && QPG.app.userSubjects ? QPG.app.userSubjects() : ['physics', 'maths'];
-    var allowedStds = QPG.app && QPG.app.userStandards ? QPG.app.userStandards() : [11, 12];
+    var allowedSubs = QPG.app && QPG.app.userSubjects ? QPG.app.userSubjects() : ['physics', 'maths', 'science'];
+    var allowedStds = QPG.app && QPG.app.userStandards ? QPG.app.userStandards() : [8, 9, 10, 11, 12];
     var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
     var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
 
@@ -50,15 +50,28 @@
     var S = QPG.schema;
     var ch = QPG.syllabus.chapterName(q.subject, q.std, q.chapter);
     var used = (q.usage || []).length;
+    var isAdmin = QPG.app && QPG.app.isAdmin && QPG.app.isAdmin();
+    var creatorBadge = (q.creatorName || q.createdBy)
+      ? '<span style="background:#e0f2fe;color:#0369a1;padding:2px 7px;border-radius:6px;font-size:12px;font-weight:600">👤 ' + esc(q.creatorName || q.createdBy) + '</span>'
+      : '';
+    var assignedBadge = (q.assignedTo && q.assignedTo.length && q.assignedTo[0] !== 'all')
+      ? '<span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:6px;font-size:12px;font-weight:600">🎯 સોંપેલ: ' + esc(q.assignedTo.join(', ')) + '</span>'
+      : '';
+
     return '<li class="qcard" data-id="' + esc(q.id) + '">' +
       '<div class="qcard-body">' +
-        '<div class="qcard-meta"><span class="ch">' + esc(QPG.syllabus.subjectName(q.subject)) + ' · ધો. ' + esc(q.std) + ' · પ્રક. ' + esc(q.chapter) + (ch ? ' ' + esc(ch) : '') + '</span>' +
-        '<span>' + esc(S.typeLabel(q.type)) + '</span><span>' + esc(S.difficultyLabel(q.difficulty)) + '</span>' +
-        (q.topic ? '<span>' + esc(q.topic) + '</span>' : '') +
-        (used ? '<span>' + used + ' પેપરમાં વપરાયો</span>' : '') +
-        (q.isDemo ? '<span class="badge badge-demo">ડેમો</span>' : '') + '</div>' +
+        '<div class="qcard-meta">' +
+          '<span class="ch">' + esc(QPG.syllabus.subjectName(q.subject)) + ' · ધો. ' + esc(q.std) + ' · પ્રક. ' + esc(q.chapter) + (ch ? ' ' + esc(ch) : '') + '</span>' +
+          '<span>' + esc(S.typeLabel(q.type)) + '</span><span>' + esc(S.difficultyLabel(q.difficulty)) + '</span>' +
+          (q.topic ? '<span>' + esc(q.topic) + '</span>' : '') +
+          creatorBadge +
+          assignedBadge +
+          (used ? '<span>' + used + ' પેપરમાં વપરાયો</span>' : '') +
+          (q.isDemo ? '<span class="badge badge-demo">ડેમો</span>' : '') +
+        '</div>' +
         QPG.questionHtml.render(q, { showAnswer: QPG.app.state.showAnswers }) +
         '<div class="qcard-actions">' +
+          (isAdmin ? '<button type="button" class="btn btn-quiet btn-sm" data-act="assign-teacher" style="color:var(--accent);font-weight:600">👨‍🏫 શિક્ષકને સોંપો</button>' : '') +
           '<a class="btn btn-quiet btn-sm" href="#/questions/edit/' + encodeURIComponent(q.id) + '">' + icon('edit') + 'સુધારો</a>' +
           '<a class="btn btn-quiet btn-sm" href="#/questions/copy/' + encodeURIComponent(q.id) + '">' + icon('copy') + 'નકલ</a>' +
           '<button type="button" class="btn btn-quiet btn-sm" data-act="delete" style="color:var(--red)">' + icon('trash') + 'કાઢી નાખો</button>' +
@@ -71,6 +84,7 @@
   QPG.views.bank = function (el, ctx) {
     var state = QPG.app.state;
     var f = state.bankFilters;
+    var isAdmin = QPG.app && QPG.app.isAdmin && QPG.app.isAdmin();
     // filters passed in the link (from the home screen) replace the current ones
     if (ctx.query && Object.keys(ctx.query).length) {
       f = state.bankFilters = { demo: 'any', used: 'any' };
@@ -81,9 +95,12 @@
 
     el.innerHTML =
       '<div class="page-head"><div><h1>પ્રશ્ન બેંક</h1><p>બધા પ્રશ્નો, જવાબ અને ઉકેલ એક જગ્યાએ.</p></div>' +
-      '<div class="actions"><button type="button" class="btn" data-act="answers">' + icon('eye') + '<span data-answers-label></span></button>' +
-      '<a class="btn" href="#/import">' + icon('upload') + 'Import</a>' +
-      '<a class="btn btn-primary hide-mobile" href="#/questions/new">' + icon('plus') + 'નવો પ્રશ્ન</a></div></div>' +
+      '<div class="actions">' +
+        (isAdmin ? '<button type="button" class="btn btn-quiet" data-act="bulk-assign" style="font-weight:600">📤 શિક્ષકને પ્રશ્નો સોંપો</button>' : '') +
+        '<button type="button" class="btn" data-act="answers">' + icon('eye') + '<span data-answers-label></span></button>' +
+        '<a class="btn" href="#/import">' + icon('upload') + 'Import</a>' +
+        '<a class="btn btn-primary hide-mobile" href="#/questions/new">' + icon('plus') + 'નવો પ્રશ્ન</a>' +
+      '</div></div>' +
       '<div class="bank-tools"><div class="search">' + icon('search') +
         '<label class="sr-only" for="q-search">પ્રશ્ન શોધો</label>' +
         '<input id="q-search" class="input" type="search" placeholder="શબ્દ લખીને શોધો…" value="' + esc(f.q || '') + '"></div>' +
@@ -182,6 +199,119 @@
         shown += PAGE; drawList();
       } else if (act === 'answers') {
         state.showAnswers = !state.showAnswers; setAnswersLabel(); drawList();
+      } else if (act === 'assign-teacher') {
+        var id = b.closest('.qcard').getAttribute('data-id');
+        var q = QPG.app.questionById(id);
+        if (!q) return;
+        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
+        if (!teachers.length) {
+          QPG.ui.confirmDialog({
+            title: 'કોઈ શિક્ષક મળ્યા નથી',
+            body: 'હજુ સુધી કોઈ શિક્ષક Approve થયેલ નથી. પહેલાં સેટિંગ્સમાંથી શિક્ષકને Approve કરો.',
+            ok: 'સમજાયું'
+          });
+          return;
+        }
+
+        var optsHtml = '<option value="all">બધા શિક્ષકો (All Teachers)</option>' +
+          teachers.map(function (t) {
+            var subs = (t.subjects || []).join(', ');
+            var stds = (t.standards || []).join(', ');
+            return '<option value="' + esc(t.email) + '">' + esc(t.name) + ' (' + esc(t.email) + ') — ' + subs + ' [Std ' + stds + ']</option>';
+          }).join('');
+
+        var modal = document.createElement('div');
+        modal.className = 'modal is-open';
+        modal.innerHTML =
+          '<div class="modal-card panel" style="max-width:480px">' +
+            '<h3>👨‍🏫 શિક્ષકને પ્રશ્ન સોંપો</h3>' +
+            '<p style="margin:4px 0 14px;color:var(--muted);font-size:14px">પસંદ કરેલા શિક્ષકના એકાઉન્ટમાં આ પ્રશ્ન દેખાશે.</p>' +
+            '<label class="field"><span class="lbl">શિક્ષક પસંદ કરો</span>' +
+              '<select class="input" data-assign-sel>' + optsHtml + '</select>' +
+            '</label>' +
+            '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">' +
+              '<button type="button" class="btn btn-quiet" data-assign-cancel>રદ કરો</button>' +
+              '<button type="button" class="btn btn-primary" data-assign-ok>સોંપો</button>' +
+            '</div>' +
+          '</div>';
+
+        document.body.appendChild(modal);
+        modal.querySelector('[data-assign-cancel]').onclick = function () { modal.remove(); };
+        modal.querySelector('[data-assign-ok]').onclick = function () {
+          var selVal = modal.querySelector('[data-assign-sel]').value;
+          q.assignedTo = selVal === 'all' ? ['all'] : [selVal];
+          QPG.db.saveQuestion(q).then(function () {
+            QPG.app.upsertLocal(q);
+            modal.remove();
+            QPG.ui.toast(selVal === 'all' ? 'પ્રશ્ન બધા શિક્ષકોને સોંપાયો' : 'પ્રશ્ન ' + selVal + ' ને સોંપાયો');
+            drawList();
+          });
+        };
+      } else if (act === 'bulk-assign') {
+        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
+        if (!teachers.length) {
+          QPG.ui.confirmDialog({
+            title: 'કોઈ શિક્ષક મળ્યા નથી',
+            body: 'હજુ સુધી કોઈ શિક્ષક Approve થયેલ નથી.',
+            ok: 'સમજાયું'
+          });
+          return;
+        }
+
+        var tOpts = teachers.map(function (t) {
+          return '<option value="' + esc(t.email) + '">' + esc(t.name) + ' (' + esc(t.email) + ')</option>';
+        }).join('');
+
+        var sOpts = QPG.syllabus.SUBJECTS.map(function (s) {
+          return '<option value="' + s.id + '">' + esc(s.gu) + ' (' + esc(s.en) + ')</option>';
+        }).join('');
+
+        var stdOpts = QPG.syllabus.STANDARDS.map(function (s) {
+          return '<option value="' + s + '">ધોરણ ' + s + '</option>';
+        }).join('');
+
+        var modal = document.createElement('div');
+        modal.className = 'modal is-open';
+        modal.innerHTML =
+          '<div class="modal-card panel" style="max-width:500px">' +
+            '<h3>📤 પ્રશ્ન બેંક શિક્ષકને સોંપો (Bulk Assign)</h3>' +
+            '<p style="margin:4px 0 14px;color:var(--muted);font-size:14px">કોઈ વિષય અને ધોરણના બધા પ્રશ્નો એકસાથે શિક્ષકને સોંપો.</p>' +
+            '<div class="row row-2">' +
+              '<label class="field"><span class="lbl">વિષય</span><select class="input" data-bulk-sub>' + sOpts + '</select></label>' +
+              '<label class="field"><span class="lbl">ધોરણ</span><select class="input" data-bulk-std>' + stdOpts + '</select></label>' +
+            '</div>' +
+            '<label class="field" style="margin-top:10px"><span class="lbl">શિક્ષક પસંદ કરો</span><select class="input" data-bulk-teacher>' + tOpts + '</select></label>' +
+            '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">' +
+              '<button type="button" class="btn btn-quiet" data-bulk-cancel>રદ કરો</button>' +
+              '<button type="button" class="btn btn-primary" data-bulk-ok>બધા પ્રશ્નો સોંપો</button>' +
+            '</div>' +
+          '</div>';
+
+        document.body.appendChild(modal);
+        modal.querySelector('[data-bulk-cancel]').onclick = function () { modal.remove(); };
+        modal.querySelector('[data-bulk-ok]').onclick = function () {
+          var selSub = modal.querySelector('[data-bulk-sub]').value;
+          var selStd = Number(modal.querySelector('[data-bulk-std]').value);
+          var selTeacher = modal.querySelector('[data-bulk-teacher]').value;
+          var all = QPG.app.state.questions || [];
+          var matches = all.filter(function (q) {
+            return q.subject === selSub && Number(q.std) === selStd;
+          });
+          if (!matches.length) {
+            QPG.ui.toast('આ વિષય અને ધોરણમાં કોઈ પ્રશ્નો મળ્યા નહીં.');
+            modal.remove();
+            return;
+          }
+          matches.forEach(function (q) {
+            q.assignedTo = [selTeacher];
+          });
+          QPG.db.bulkPut('questions', matches).then(function () {
+            matches.forEach(QPG.app.upsertLocal);
+            modal.remove();
+            QPG.ui.toast(matches.length + ' પ્રશ્નો ' + selTeacher + ' ને સોંપવામાં આવ્યા!');
+            drawList();
+          });
+        };
       } else if (act === 'delete') {
         var id = b.closest('.qcard').getAttribute('data-id');
         var q = QPG.app.questionById(id);
