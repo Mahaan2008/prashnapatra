@@ -84,12 +84,13 @@
             '<h2 style="margin:0;font-size:19px;color:var(--ink-strong)">સ્વાગત છે, ' + esc(u.name || (u.email ? u.email.split('@')[0] : 'શિક્ષક મિત્ર')) + '!</h2>' +
             '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + esc(u.email || '') + '</div>' +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:10px">' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
             '<div style="background:var(--canvas);border:1px solid var(--rule);padding:8px 14px;border-radius:var(--radius-sm);text-align:center">' +
               '<div style="font-size:11.5px;color:var(--muted)">તમારા પ્રશ્નો</div>' +
               '<b style="font-size:17px;color:var(--ink-strong)">' + qs.length + '</b>' +
             '</div>' +
             (isAdmin ? '<a href="#/settings" class="btn btn-sm btn-quiet" style="font-size:12.5px;font-weight:600">👑 ઍડમિન પેનલ</a>' : '') +
+            '<button type="button" class="btn btn-sm btn-quiet" data-act="home-logout" style="color:var(--red);border-color:rgba(220,38,38,0.3);font-size:12.5px;font-weight:600">🚪 લૉગઆઉટ</button>' +
           '</div>' +
         '</div>' +
       '</div>' : '';
@@ -133,6 +134,25 @@
       '</div>';
 
     el.addEventListener('click', function (e) {
+      var logoutBtn = e.target.closest('[data-act="home-logout"]');
+      if (logoutBtn) {
+        e.preventDefault();
+        QPG.ui.confirmDialog({
+          title: 'આ ઉપકરણમાંથી લૉગઆઉટ કરવું છે?',
+          body: 'આ ઉપકરણમાંથી ડેટા નીકળી જશે, પણ ક્લાઉડમાં સલામત રહેશે. ફરી લૉગિન કરતાં પાછો આવી જશે.',
+          ok: 'હા, લૉગઆઉટ',
+          danger: true
+        }).then(function (yes) {
+          if (yes) {
+            logoutBtn.disabled = true;
+            QPG.app_logout().then(function (done) {
+              if (!done) logoutBtn.disabled = false;
+            });
+          }
+        });
+        return;
+      }
+
       var covBtn = e.target.closest('[data-act="toggle-cov"]');
       if (covBtn) {
         e.preventDefault();
