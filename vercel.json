@@ -1,11 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    {
-      "source": "/api/gemini/:path*",
-      "destination": "https://generativelanguage.googleapis.com/:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/",
@@ -52,5 +46,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/gemini.js": {
+      "maxDuration": 60
+    }
+  }
 }

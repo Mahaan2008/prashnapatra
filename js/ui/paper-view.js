@@ -107,7 +107,7 @@
     function draw() {
       QPG.db.allPapers().then(function (papers) {
         if (app.userPapers) {
-          papers = app.userPapers();
+          papers = app.userPapers(papers);
         }
         if (!papers.length) {
           listEl.innerHTML = '<div class="empty"><strong>હજુ એક પણ પેપર નથી</strong>ફોર્મેટ અને પ્રકરણ પસંદ કરો — પ્રશ્નો આપોઆપ ગોઠવાઈ જશે.<br>' +

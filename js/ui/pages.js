@@ -186,7 +186,9 @@
         return QPG.auth.signUp(email, pw, { name: name, subjects: subjects, standards: standards }).then(function (r) {
           if (r.session) return QPG.app.afterLogin();
           mode = 'login';
-          draw('<div class="notice notice-ok">' + icon('ok') + '<div>એકાઉન્ટ નોંધાઈ ગયું છે!<br>તમારું એકાઉન્ટ મુખ્ય ઍડમિન (<b>mahaanthakkar2008@gmail.com</b>) ની મંજૂરી (Approval) માટે મોકલાયું છે. ઍડમિન મંજૂર કરશે તે પછી જ તમે લૉગિન કરી શકશો.</div></div>');
+          draw('<div class="notice notice-ok">' + icon('ok') + '<div><b>એકાઉન્ટ નોંધાઈ ગયું.</b><br>' +
+            (r.confirm ? '1) <b>' + esc(email) + '</b> પર આવેલા ઇમેઇલમાં <b>Confirm your mail</b> લિંક ખોલો (Spam પણ જુઓ).<br>2) ' : '') +
+            'ઍડમિન તમારું એકાઉન્ટ મંજૂર (Approve) કરે પછી અહીં લૉગિન કરી શકશો.</div></div>');
           el.querySelector('[name=email]').value = email;
         }, function (err) { show('error', err.message); btn.disabled = false; });
       }
@@ -210,76 +212,90 @@
     });
   };
 
+  /* ---------- admin: teachers and their approval (server) ---------- */
+  var SUBJECT_OPTS = [['physics', 'ભૌતિકવિજ્ઞાન (Physics)'], ['maths', 'ગણિત (Maths)'], ['science', 'વિજ્ઞાન (Science)']];
+  var STD_OPTS = [8, 9, 10, 11, 12];
+  function subjectName(s) { return s === 'physics' ? 'Physics' : s === 'maths' ? 'ગણિત' : s === 'science' ? 'વિજ્ઞાન' : s; }
+  function checks(name, opts, chosen) {
+    return '<div class="chk-row">' + opts.map(function (o) {
+      var v = Array.isArray(o) ? o[0] : o, label = Array.isArray(o) ? o[1] : 'ધોરણ ' + o;
+      return '<label><input type="checkbox" name="' + name + '" value="' + v + '"' + (chosen.indexOf(v) >= 0 ? ' checked' : '') + '> ' + esc(label) + '</label>';
+    }).join('') + '</div>';
+  }
+
   function adminApprovalsPanel() {
-    if (!QPG.app || !QPG.app.isAdmin || !QPG.app.isAdmin()) return '';
-    var list = QPG.approvals ? QPG.approvals.getAll() : {};
-    var emails = Object.keys(list);
-
-    var rows = emails.map(function (em) {
-      var u = list[em];
-      var subs = (u.subjects || []).map(function (s) { return s === 'physics' ? 'Physics' : s === 'maths' ? 'ગણિત' : s === 'science' ? 'વિજ્ઞાન' : s; }).join(', ') || '—';
-      var stds = (u.standards || []).map(function (s) { return 'ધોરણ ' + s; }).join(', ') || '—';
-      var isApproved = !!u.approved;
-      var statusBadge = isApproved
-        ? '<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block">🟢 મંજૂર થયેલ</span>'
-        : '<span style="background:#eab308;color:#000;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block">🟡 મંજૂરી બાકી</span>';
-
-      var actBtn = isApproved
-        ? '<button type="button" class="btn btn-quiet btn-sm" data-admin-act="revoke" data-email="' + esc(em) + '" style="color:var(--red)">' + icon('trash') + 'મંજૂરી રદ</button>'
-        : '<button type="button" class="btn btn-primary btn-sm" data-admin-act="approve" data-email="' + esc(em) + '">' + icon('ok') + 'Approve કરો</button>';
-
-      return '<tr style="border-bottom:1px solid var(--border)">' +
-        '<td style="padding:10px 8px"><b>' + esc(u.name || em.split('@')[0]) + '</b><br><small style="color:var(--muted)">' + esc(em) + '</small></td>' +
-        '<td style="padding:10px 8px">' + esc(subs) + '</td>' +
-        '<td style="padding:10px 8px">' + esc(stds) + '</td>' +
-        '<td style="padding:10px 8px">' + statusBadge + '</td>' +
-        '<td style="padding:10px 8px"><div style="display:flex;gap:6px;flex-wrap:wrap">' + actBtn +
-          '<button type="button" class="btn btn-quiet btn-sm" data-admin-act="delete" data-email="' + esc(em) + '" style="color:var(--red)">' + icon('trash') + 'કાઢો</button>' +
-        '</div></td>' +
-      '</tr>';
-    }).join('');
-
-    return '<section class="panel" data-admin-panel style="border: 2px solid var(--accent); background: rgba(59,130,246,0.03); margin-bottom: 20px">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">' +
-        '<h2 style="color:var(--accent);display:flex;align-items:center;gap:8px;margin:0">👑 મુખ્ય ઍડમિન પેનલ — શિક્ષકોની મંજૂરી (User Approvals)</h2>' +
-        '<button type="button" class="btn btn-sm btn-quiet" data-act="admin-refresh-teachers">🔄 ક્લાઉડમાંથી રિફ્રેશ કરો</button>' +
-      '</div>' +
-      '<p style="margin-top:0">મુખ્ય ઍડમિન તરીકે (<b>mahaanthakkar2008@gmail.com</b>) તમે નવા નોંધાયેલા શિક્ષકોને Approve કે રદ કરી શકો છો. માત્ર Approve થયેલા શિક્ષકો જ લૉગિન કરી શકશે.</p>' +
-
-      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">' +
-        '<h3 style="margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:6px">➕ નવો શિક્ષક ઉમેરો & સીધા Approve કરો (Direct Add & Approve)</h3>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px">' +
-          '<label class="field" style="margin:0"><span class="lbl">શિક્ષકનું નામ</span><input class="input input-sm" id="admin-add-name" placeholder="દા.ત. રમેશભાઈ પટેલ"></label>' +
-          '<label class="field" style="margin:0"><span class="lbl">શિક્ષકનું ઇમેઇલ</span><input class="input input-sm" type="email" id="admin-add-email" placeholder="teacher@gmail.com"></label>' +
+    if (!QPG.app.isAdmin() || !QPG.auth.user()) return '';
+    return '<section class="panel admin-panel" data-admin-panel>' +
+      '<div class="admin-head"><h2>શિક્ષકો અને મંજૂરી (ઍડમિન)</h2>' +
+        '<button type="button" class="btn btn-sm btn-quiet" data-act="admin-refresh-teachers">ફરી લાવો</button></div>' +
+      '<p style="margin-top:0">નવા શિક્ષક સાઇન-અપ કરે એટલે અહીં "મંજૂરી બાકી" માં દેખાય છે. મંજૂર કરેલા શિક્ષક જ લૉગિન અને સિંક કરી શકે છે — આ નિયમ સર્વર પર લાગુ છે.</p>' +
+      '<div data-admin-list><p style="color:var(--muted)">શિક્ષકોની યાદી આવે છે…</p></div>' +
+      '<details class="admin-add"><summary>નવો શિક્ષક અગાઉથી ઉમેરો (સાઇન-અપ કરતાં જ મંજૂર)</summary>' +
+        '<div class="row row-2" style="margin-top:10px">' +
+          '<label class="field"><span class="lbl">શિક્ષકનું નામ</span><input class="input" id="admin-add-name" placeholder="દા.ત. રમેશભાઈ પટેલ"></label>' +
+          '<label class="field"><span class="lbl">શિક્ષકનું ઇમેઇલ</span><input class="input" type="email" id="admin-add-email" placeholder="teacher@gmail.com"></label>' +
         '</div>' +
-        '<div style="margin-bottom:10px">' +
-          '<span class="lbl" style="display:block;margin-bottom:4px">વિષયો પસંદ કરો:</span>' +
-          '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px">' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="physics" checked> ભૌતિકવિજ્ઞાન (Physics)</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="maths"> ગણિત (Maths)</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="science"> વિજ્ઞાન (Science)</label>' +
+        '<span class="lbl">વિષય</span>' + checks('adm-sub', SUBJECT_OPTS, ['physics']) +
+        '<span class="lbl">ધોરણ</span>' + checks('adm-std', STD_OPTS, [11, 12]) +
+        '<button type="button" class="btn btn-primary btn-sm" data-act="admin-add-teacher" style="margin-top:10px">ઉમેરો અને મંજૂર કરો</button>' +
+      '</details></section>';
+  }
+
+  function drawTeachers(box, list) {
+    if (!list.length) { box.innerHTML = '<div class="empty-mini">હજુ કોઈ શિક્ષકે સાઇન-અપ કર્યું નથી.</div>'; return; }
+    var pending = list.filter(function (t) { return !t.approved; }).length;
+    box.innerHTML = (pending ? '<div class="notice notice-demo">' + icon('warn') + '<div><b>' + pending + '</b> શિક્ષક મંજૂરીની રાહ જુએ છે.</div></div>' : '') +
+      '<ul class="teacher-list">' + list.map(function (t) {
+        var state = t.approved ? '<span class="tag tag-ok">મંજૂર</span>' : '<span class="tag tag-wait">મંજૂરી બાકી</span>';
+        var note = !t.registered ? 'હજુ સાઇન-અપ કર્યું નથી' : (!t.confirmed ? 'ઇમેઇલ હજુ ચકાસ્યો નથી' : '');
+        return '<li data-teacher="' + esc(t.email) + '">' +
+          '<div class="t-main"><b>' + esc(t.name) + '</b> ' + state + '<br><small>' + esc(t.email) + (note ? ' · ' + esc(note) : '') + '</small>' +
+            '<div class="t-perm">' + esc(t.subjects.map(subjectName).join(', ') || '—') + ' · ધોરણ ' + esc(t.standards.join(', ') || '—') + '</div></div>' +
+          '<div class="t-acts">' +
+            (t.approved ? '<button type="button" class="btn btn-sm" data-admin-act="revoke">મંજૂરી રદ</button>'
+                        : '<button type="button" class="btn btn-sm btn-primary" data-admin-act="approve">' + icon('ok') + 'મંજૂર કરો</button>') +
+            '<button type="button" class="btn btn-sm btn-quiet" data-admin-act="edit">વિષય / ધોરણ</button>' +
+            '<button type="button" class="btn btn-sm btn-quiet" data-admin-act="delete" style="color:var(--red)">કાઢો</button>' +
           '</div>' +
-        '</div>' +
-        '<div style="margin-bottom:12px">' +
-          '<span class="lbl" style="display:block;margin-bottom:4px">ધોરણ પસંદ કરો:</span>' +
-          '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px">' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="8"> ધોરણ 8</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="9"> ધોરણ 9</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="10"> ધોરણ 10</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="11" checked> ધોરણ 11</label>' +
-            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="12" checked> ધોરણ 12</label>' +
-          '</div>' +
-        '</div>' +
-        '<button type="button" class="btn btn-sm btn-primary" data-act="admin-add-teacher">➕ શિક્ષક ઉમેરો & Approve કરો</button>' +
-      '</div>' +
+          '<div class="t-edit" hidden><span class="lbl">વિષય</span>' + checks('ed-sub', SUBJECT_OPTS, t.subjects) +
+            '<span class="lbl">ધોરણ</span>' + checks('ed-std', STD_OPTS, t.standards) +
+            '<button type="button" class="btn btn-sm btn-primary" data-admin-act="save-perm">સાચવો</button></div>' +
+        '</li>';
+      }).join('') + '</ul>';
+  }
 
-      (emails.length === 0
-        ? '<div style="padding:14px;background:var(--bg);border-radius:8px;text-align:center;color:var(--muted);border:1px dashed var(--border)">હજુ સુધી કોઈ શિક્ષકે સાઇન-અપ કર્યું નથી.</div>'
-        : '<div style="overflow-x:auto"><table style="width:100%;text-align:left;border-collapse:collapse;font-size:14.5px">' +
-            '<thead><tr style="border-bottom:2px solid var(--border);color:var(--muted)"><th style="padding:8px">શિક્ષક</th><th style="padding:8px">વિષય</th><th style="padding:8px">ધોરણ</th><th style="padding:8px">સ્થિતિ</th><th style="padding:8px">ક્રિયાઓ</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table></div>') +
-    '</section>';
+  function loadTeachers(el) {
+    var box = el.querySelector('[data-admin-list]');
+    if (!box) return Promise.resolve();
+    return QPG.approvals.load().then(function (list) { drawTeachers(box, list); }, function (e) {
+      box.innerHTML = '<div class="notice notice-error">' + icon('error') + '<div>યાદી આવી નહીં: ' + esc(e.message || e) + '</div></div>';
+    });
+  }
+
+  /** Clicks inside the admin panel. Returns true when handled. */
+  function adminClick(e, el) {
+    var b = e.target.closest('[data-admin-act]');
+    if (!b) return false;
+    var li = b.closest('[data-teacher]'), email = li.getAttribute('data-teacher'), act = b.getAttribute('data-admin-act');
+    var t = QPG.approvals.list().find(function (x) { return x.email === email; }) || {};
+    var done = function (msg) { return function () { QPG.ui.toast(msg); return loadTeachers(el); }; };
+    var fail = function (err) { QPG.ui.toast('ન થયું: ' + (err.message || err)); b.disabled = false; };
+    if (act === 'edit') { li.querySelector('.t-edit').hidden = !li.querySelector('.t-edit').hidden; return true; }
+    b.disabled = true;
+    if (act === 'approve') QPG.approvals.setApproved(email, true).then(done(t.name + ' ને મંજૂરી આપી')).catch(fail);
+    else if (act === 'revoke') {
+      QPG.ui.confirmDialog({ title: t.name + ' ની મંજૂરી રદ કરવી છે?', body: 'એ શિક્ષક હવે લૉગિન કે સિંક કરી શકશે નહીં (એમનાં ઉપકરણમાંથી આપોઆપ લૉગઆઉટ થશે). એમનો ક્લાઉડ ડેટા રહેશે; ફરી મંજૂર કરો તો પાછો મળશે.', ok: 'મંજૂરી રદ કરો', danger: true })
+        .then(function (yes) { if (!yes) { b.disabled = false; return; } return QPG.approvals.setApproved(email, false).then(done(t.name + ' ની મંજૂરી રદ થઈ')); }).catch(fail);
+    } else if (act === 'delete') {
+      QPG.ui.confirmDialog({ title: t.name + ' ને યાદીમાંથી કાઢવા છે?', body: 'મંજૂરી પણ નીકળી જશે. એ ફરી લૉગિન કરે તો "મંજૂરી બાકી" માં દેખાશે. એમનો સેવ થયેલો ડેટા રહેશે.', ok: 'કાઢો', danger: true })
+        .then(function (yes) { if (!yes) { b.disabled = false; return; } return QPG.approvals.remove(email).then(done(t.name + ' ને યાદીમાંથી કાઢ્યા')); }).catch(fail);
+    } else if (act === 'save-perm') {
+      var subs = Array.from(li.querySelectorAll('input[name=ed-sub]:checked')).map(function (c) { return c.value; });
+      var stds = Array.from(li.querySelectorAll('input[name=ed-std]:checked')).map(function (c) { return Number(c.value); });
+      if (!subs.length || !stds.length) { QPG.ui.toast('ઓછામાં ઓછો એક વિષય અને એક ધોરણ પસંદ કરો.'); b.disabled = false; return true; }
+      QPG.approvals.save(email, t.name, subs, stds, t.approved).then(done('વિષય / ધોરણ સચવાયાં')).catch(fail);
+    }
+    return true;
   }
 
   QPG.views.settings = function (el) {
@@ -291,20 +307,23 @@
       '<div class="page-head"><div><h1>ટેમ્પ્લેટ અને સેટિંગ્સ</h1><p>સિંક, પેપરના ફોર્મેટમાં સંસ્થાનું નામ, લોગો અને લખાણ, બેકઅપ.</p></div></div>' +
       adminApprovalsPanel() +
       accountPanel() +
-      '<section class="panel"><h2>✨ Gemini AI સેટિંગ્સ (સૂત્રો & PDF Import)</h2>' +
-        '<p style="margin-top:0">PDF પેપરમાંથી પ્રશ્નો અને ગણિતનાં અટપટાં સમીકરણો/સૂત્રો (LaTeX) એકદમ સચોટ લાવવા માટે Gemini AI વાપરી શકાય છે.</p>' +
-        '<div class="row row-2">' +
+      '<section class="panel"><h2>Gemini AI (PDF માંથી પ્રશ્નો, સૂત્રો, જવાબ)</h2>' +
+        '<p style="margin-top:0">PDF / Word માંથી પ્રશ્નો અને ગણિતનાં સૂત્રો (LaTeX) સચોટ લાવવા, અને જવાબ લખવા Gemini AI વપરાય છે.</p>' +
+        '<p data-gemini-server style="font-size:15px">AI ની સ્થિતિ ચકાસે છે…</p>' +
+        (app.isAdmin() ? '<p style="font-size:14px;color:var(--muted);margin-top:0">ઍડમિન: કી એક જ વાર Vercel માં મૂકો — Project → Settings → Environment Variables → <b>GEMINI_API_KEY</b>. પછી બધા મંજૂર શિક્ષકો પોતાની કી વગર AI વાપરી શકશે, અને કી કોઈને દેખાશે નહીં.</p>' : '') +
+        '<details><summary style="cursor:pointer">આ ઉપકરણ માટે પોતાની કી (વૈકલ્પિક)</summary>' +
+        '<div class="row row-2" style="margin-top:10px">' +
           '<label class="field"><span class="lbl">Gemini API Key</span>' +
-            '<input type="password" class="input" data-setting-gemini-key value="' + esc(QPG.gemini ? QPG.gemini.getApiKey() : '') + '" placeholder="AIzaSy...">' +
+            '<input type="password" class="input" data-setting-gemini-key value="' + esc(QPG.gemini ? QPG.gemini.getApiKey() : '') + '" placeholder="AIzaSy..." autocomplete="off">' +
           '</label>' +
-          '<div class="field" style="display:flex;align-items:flex-end;gap:8px">' +
+          '<div class="field" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">' +
             '<button type="button" class="btn btn-primary" data-act="save-settings-gemini">સાચવો / ચકાસો</button>' +
             '<a class="btn btn-quiet" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">મફત API Key મેળવો ↗</a>' +
           '</div>' +
         '</div>' +
         '<div data-gemini-status style="margin-top:8px;font-size:14px;color:var(--muted)">' +
-          (QPG.gemini && QPG.gemini.hasApiKey() ? '✓ Gemini API Key સક્રિય છે.' : 'કી દાખલ કરેલી નથી.') +
-        '</div>' +
+          (QPG.gemini && QPG.gemini.getApiKey() ? 'આ ઉપકરણમાં કી સાચવેલી છે (સર્વર પર કી ન હોય ત્યારે જ વપરાય).' : 'આ ઉપકરણમાં કી નથી.') +
+        '</div></details>' +
       '</section>' +
       app.templateList().map(templatePanel).join('') +
       '<section class="panel"><h2>બેકઅપ ફાઇલ</h2>' +
@@ -340,6 +359,13 @@
       });
     }
 
+    if (el.querySelector('[data-admin-panel]')) loadTeachers(el);
+    if (QPG.gemini) QPG.gemini.checkServer().then(function (on) {
+      var g = el.querySelector('[data-gemini-server]');
+      if (!g) return;
+      g.innerHTML = on ? '<b style="color:var(--green)">✓ AI ચાલુ છે</b> — સર્વર પરની કી વપરાય છે (લૉગિન કરેલા મંજૂર શિક્ષકો માટે).'
+        : (QPG.gemini.getApiKey() ? '<b>AI ચાલુ છે</b> — આ ઉપકરણની કીથી.' : '<b style="color:var(--amber)">AI હજુ ચાલુ નથી</b> — સર્વર પર કી ગોઠવાયેલી નથી.');
+    });
     var accBox = el.querySelector('[data-account-body]');
     var stopStatus = QPG.sync.onStatus(function (st) { drawAccount(accBox, st); });
 
@@ -435,38 +461,7 @@
     });
 
     el.addEventListener('click', function (e) {
-      var adm = e.target.closest('[data-admin-act]');
-      if (adm) {
-        var act = adm.getAttribute('data-admin-act');
-        var tEmail = adm.getAttribute('data-email');
-        if (act === 'approve') {
-          QPG.approvals.approveUser(tEmail);
-          QPG.ui.toast(tEmail + ' ને Approve કર્યા!');
-          app.rerender();
-          return;
-        }
-        if (act === 'revoke') {
-          QPG.approvals.revokeUser(tEmail);
-          QPG.ui.toast(tEmail + ' ની મંજૂરી રદ કરી.');
-          app.rerender();
-          return;
-        }
-        if (act === 'delete') {
-          QPG.ui.confirmDialog({
-            title: tEmail + ' ને કાઢી નાખવા છે?',
-            body: 'આ શિક્ષકનું એકાઉન્ટ લિસ્ટમાંથી દૂર થઈ જશે.',
-            ok: 'હા, કાઢો',
-            danger: true
-          }).then(function (yes) {
-            if (yes) {
-              QPG.approvals.rejectUser(tEmail);
-              QPG.ui.toast(tEmail + ' ને દૂર કરવામાં આવ્યા.');
-              app.rerender();
-            }
-          });
-          return;
-        }
-      }
+      if (adminClick(e, el)) return;
 
       var del = e.target.closest('[data-logo-del]');
       if (del) {
@@ -482,45 +477,23 @@
 
       if (a === 'admin-refresh-teachers') {
         b.disabled = true;
-        b.textContent = 'લાવે છે…';
-        (QPG.approvals ? QPG.approvals.fetchRemoteAll() : Promise.resolve({})).then(function () {
-          QPG.ui.toast('શિક્ષકોની યાદી ક્લાઉડમાંથી તાજી થઈ');
-          app.rerender();
-        }).catch(function (err) {
-          QPG.ui.toast('ભૂલ: ' + (err.message || err));
-        }).finally(function () {
-          b.disabled = false;
-          b.textContent = '🔄 ક્લાઉડમાંથી રિફ્રેશ કરો';
-        });
+        loadTeachers(el).then(function () { b.disabled = false; });
         return;
       }
 
       if (a === 'admin-add-teacher') {
-        var nameInput = el.querySelector('#admin-add-name');
-        var emailInput = el.querySelector('#admin-add-email');
-        var tName = nameInput ? nameInput.value.trim() : '';
-        var tEmail = emailInput ? emailInput.value.trim().toLowerCase() : '';
-        if (!tEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(tEmail)) {
-          QPG.ui.toast('માન્ય ઇમેઇલ સરનામું લખો.');
-          if (emailInput) emailInput.focus();
-          return;
-        }
-        var subs = [];
-        el.querySelectorAll('input[name="adm-sub"]:checked').forEach(function (cb) { subs.push(cb.value); });
-        if (!subs.length) {
-          QPG.ui.toast('ઓછામાં ઓછો એક વિષય પસંદ કરો.');
-          return;
-        }
-        var stds = [];
-        el.querySelectorAll('input[name="adm-std"]:checked').forEach(function (cb) { stds.push(Number(cb.value)); });
-        if (!stds.length) {
-          QPG.ui.toast('ઓછામાં ઓછું એક ધોરણ પસંદ કરો.');
-          return;
-        }
+        var tName = el.querySelector('#admin-add-name').value.trim();
+        var tEmail = el.querySelector('#admin-add-email').value.trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(tEmail)) { QPG.ui.toast('માન્ય ઇમેઇલ સરનામું લખો.'); return; }
+        var subs = Array.from(el.querySelectorAll('input[name="adm-sub"]:checked')).map(function (c) { return c.value; });
+        var stds = Array.from(el.querySelectorAll('input[name="adm-std"]:checked')).map(function (c) { return Number(c.value); });
+        if (!subs.length || !stds.length) { QPG.ui.toast('ઓછામાં ઓછો એક વિષય અને એક ધોરણ પસંદ કરો.'); return; }
         b.disabled = true;
-        QPG.approvals.addOrApproveTeacher(tEmail, tName || tEmail.split('@')[0], subs, stds);
-        QPG.ui.toast('✓ શિક્ષક (' + tEmail + ') સફળતાપૂર્વક ઉમેરાયા અને Approve થઈ ગયા!');
-        app.rerender();
+        QPG.approvals.save(tEmail, tName, subs, stds, true).then(function () {
+          QPG.ui.toast(tEmail + ' ઉમેરાયા અને મંજૂર થયા');
+          el.querySelector('#admin-add-name').value = ''; el.querySelector('#admin-add-email').value = '';
+          return loadTeachers(el);
+        }).catch(function (err) { QPG.ui.toast('ન થયું: ' + (err.message || err)); }).finally(function () { b.disabled = false; });
         return;
       }
 
@@ -531,7 +504,7 @@
         if (!key) {
           if (QPG.gemini) QPG.gemini.setApiKey('');
           QPG.ui.toast('Gemini API Key કાઢી નાખી.');
-          if (statusEl) statusEl.textContent = 'કી દાખલ કરેલી નથી.';
+          if (statusEl) statusEl.textContent = 'આ ઉપકરણમાં કી નથી.';
           return;
         }
         b.textContent = 'ચકાસે છે…';
@@ -541,7 +514,7 @@
           QPG.ui.toast('✨ Gemini API Key સફળતાપૂર્વક સાચવી અને ચકાસી લેવાઈ!');
           b.textContent = 'સાચવો / ચકાસો';
           b.disabled = false;
-          if (statusEl) statusEl.textContent = '✓ Gemini API Key સક્રિય છે.';
+          if (statusEl) statusEl.textContent = 'આ ઉપકરણમાં કી સાચવેલી છે (સર્વર પર કી ન હોય ત્યારે જ વપરાય).';
         }).catch(function (err) {
           b.textContent = 'સાચવો / ચકાસો';
           b.disabled = false;

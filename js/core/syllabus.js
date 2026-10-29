@@ -183,6 +183,11 @@
     return list.map(function (name, i) { return { no: i + 1, name: name }; });
   }
 
+  /** Standards that have a chapter list for this subject (Physics 11–12, Maths 8–12, Science 8–10). */
+  function standardsFor(subject) {
+    return STANDARDS.filter(function (n) { return !!CHAPTERS[subject + '-' + n]; });
+  }
+
   function chapterName(subject, std, no, overrides) {
     var list = chapters(subject, std, overrides);
     for (var i = 0; i < list.length; i++) if (list[i].no === Number(no)) return list[i].name;
@@ -204,7 +209,7 @@
 
   return {
     SUBJECTS: SUBJECTS, CHAPTERS: CHAPTERS, DEFAULT_STD: DEFAULT_STD, STANDARDS: STANDARDS,
-    subjectName: subjectName, chapters: chapters, chapterName: chapterName,
+    subjectName: subjectName, chapters: chapters, chapterName: chapterName, standardsFor: standardsFor,
     chapterRangeText: chapterRangeText
   };
 });

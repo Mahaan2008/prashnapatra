@@ -70,27 +70,50 @@
     } catch (e) { return null; }
   }
 
-  function fromTokens(r) {
+  /** Session from the token answer. Who the user is (approved, admin, subjects) comes from the server: see profile. */
+  function fromTokens(r, profile) {
     var claims = decodeJwt(r.access_token) || {};
     var exp = Number(r.expires_at) || claims.exp || (Math.floor(Date.now() / 1000) + (Number(r.expires_in) || 3600));
     var u = r.user || {};
-    var email = (u.email || claims.email || '').toLowerCase().trim();
-    var meta = u.user_metadata || claims.user_metadata || {};
-    var isAdmin = email === 'mahaanthakkar2008@gmail.com';
-    var regUser = (QPG.approvals && QPG.approvals.getUser(email)) || {};
-
     return {
       access_token: r.access_token, refresh_token: r.refresh_token, expires_at: exp,
-      user: {
-        id: u.id || claims.sub,
-        email: email,
-        name: isAdmin ? 'મુખ્ય ઍડમિન (Admin)' : (meta.name || regUser.name || email.split('@')[0]),
-        role: isAdmin ? 'admin' : 'teacher',
-        approved: isAdmin ? true : (meta.approved === true || regUser.approved === true),
-        subjects: isAdmin ? ['physics', 'maths', 'science'] : (regUser.subjects || meta.subjects || ['physics']),
-        standards: isAdmin ? [8, 9, 10, 11, 12] : (regUser.standards || meta.standards || [11])
-      }
+      user: { id: u.id || claims.sub, email: String(u.email || claims.email || '').toLowerCase().trim() },
+      profile: profile || null
     };
+  }
+
+  var PENDING_TEXT = 'તમારું એકાઉન્ટ હજુ ઍડમિન દ્વારા મંજૂર (Approve) થયું નથી. ઍડમિન મંજૂર કરે પછી ફરી લૉગિન કરો.';
+
+  /** Call a database function as this user → {status, body}. Tests replace QPG.syncTransport. */
+  function rest(name, body, token) {
+    if (QPG.syncTransport) return QPG.syncTransport(name, body, token).catch(function () { return { status: 0, body: null }; });
+    return fetch(String(cfg().SUPABASE_URL).replace(/\/$/, '') + '/rest/v1/rpc/' + name, {
+      method: 'POST', cache: 'no-store',
+      headers: { apikey: cfg().SUPABASE_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (res) {
+      return res.text().then(function (t) { var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; } return { status: res.status, body: j }; });
+    }, function () { return { status: 0, body: null }; });
+  }
+
+  function fetchProfile(token) {
+    return rest('my_profile', {}, token).then(function (r) {
+      if (r.status >= 200 && r.status < 300 && r.body) return r.body;
+      if (r.status === 0) throw authError('network', 'સર્વર સુધી પહોંચાતું નથી — ઇન્ટરનેટ તપાસીને ફરી પ્રયત્ન કરો.');
+      throw authError('profile', 'એકાઉન્ટની માહિતી મળી નહીં (' + r.status + ').');
+    });
+  }
+
+  /** Tokens → check approval with the server → save. Not approved: end that login and say so. */
+  function accept(r) {
+    return fetchProfile(r.access_token).then(function (p) {
+      if (!p.approved) {
+        call('POST', '/logout?scope=local', null, r.access_token).catch(function () {});
+        throw authError('pending_approval', PENDING_TEXT);
+      }
+      var s = fromTokens(r, p);
+      return save(s).then(function () { return s; });
+    });
   }
 
   function save(s) {
@@ -115,7 +138,7 @@
         var rt = (stored || session || {}).refresh_token;
         if (!rt) throw authError('session_not_found', MESSAGES.session_not_found);
         return call('POST', '/token?grant_type=refresh_token', { refresh_token: rt }).then(function (r) {
-          var s = fromTokens(r); return save(s).then(function () { return s; });
+          var s = fromTokens(r, (stored || session || {}).profile); return save(s).then(function () { return s; });
         });
       });
     }).finally(function () { refreshing = null; });
@@ -142,42 +165,15 @@
     init: function () {
       var h = consumeHash();
       if (h && h.tokens) {
-        var s = fromTokens(h.tokens);
-        var em = (s.user && s.user.email) ? s.user.email.toLowerCase().trim() : '';
-        var isAdmin = em === 'mahaanthakkar2008@gmail.com';
-        if (isAdmin) {
-          return save(s).then(function () { return { type: h.type }; });
-        }
-        // Non-admin teacher: MUST BE APPROVED by admin!
-        return (QPG.approvals ? QPG.approvals.checkRemote(em) : Promise.resolve(false))
-          .then(function (isAppr) {
-            if (!isAppr && !s.user.approved) {
-              if (s.access_token) {
-                try { call('POST', '/logout?scope=local', null, s.access_token); } catch (e) {}
-              }
-              session = null;
-              return save(null).then(function () {
-                return {
-                  error: 'તમારું ઇમેઇલ સફળતાપૂર્વક ચકાસાયું છે! પરંતુ તમારું એકાઉન્ટ હજુ મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. ઍડમિન Approve કરશે તે પછી જ તમે લૉગિન કરી શકશો.'
-                };
-              });
-            }
-            s.user.approved = true;
-            return save(s).then(function () { return { type: h.type }; });
+        return accept(h.tokens).then(function () { return { type: h.type }; }, function (e) {
+          session = null;
+          return save(null).then(function () {
+            return { error: e.auth === 'pending_approval' ? 'તમારો ઇમેઇલ ચકાસાઈ ગયો છે. ' + PENDING_TEXT : e.message };
           });
+        });
       }
       return QPG.db.getMeta('authSession').then(function (s) {
-        if (s && s.user && s.user.email && s.user.email.toLowerCase().trim() !== 'mahaanthakkar2008@gmail.com') {
-          var em = s.user.email.toLowerCase().trim();
-          var isAppr = (QPG.approvals && QPG.approvals.isApproved(em, s.user));
-          if (!isAppr) {
-            session = null;
-            return QPG.db.delMeta('authSession').then(function () {
-              return { error: 'તમારું એકાઉન્ટ હજુ ઍડમિન દ્વારા મંજૂર (Approve) થયેલ નથી.' };
-            });
-          }
-        }
-        session = s || null;
+        session = s && s.refresh_token ? s : null;
         if (h && h.error) {
           return { error: h.error === 'otp_expired' ? 'ઇમેઇલની લિંક જૂની થઈ ગઈ છે — ફરી લૉગિન / પાસવર્ડ રીસેટ કરો.' : ('ઇમેઇલની લિંક ચાલી નહીં: ' + (h.text || h.error)) };
         }
@@ -185,8 +181,45 @@
       });
     },
 
+    /**
+     * Ask the server again who this user is (approval can be taken back, subjects can change).
+     * Resolves to 'ok' | 'revoked' | 'offline'. On 'revoked' the session is removed.
+     */
+    refreshProfile: function () {
+      if (!session) return Promise.resolve('offline');
+      return auth.token().then(fetchProfile).then(function (p) {
+        if (!p.approved) return save(null).then(function () { return 'revoked'; });
+        session.profile = p;
+        return save(session).then(function () { return 'ok'; });
+      }, function (e) {
+        if (e && (e.auth === 'refresh_token_not_found' || e.auth === 'session_not_found')) return save(null).then(function () { return 'revoked'; });
+        return 'offline';
+      });
+    },
+
+    /** Call a database function as the logged-in user. Resolves to its answer, rejects with a message. */
+    rpc: function (name, body) {
+      var once = function (force) { return auth.token(force).then(function (t) { return rest(name, body, t); }); };
+      return once(false).then(function (r) { return r.status === 401 ? once(true) : r; }).then(function (r) {
+        if (r.status >= 200 && r.status < 300) return r.body;
+        if (r.status === 0) throw authError('network', 'ઇન્ટરનેટ નથી — થોડી વાર પછી ફરી પ્રયત્ન કરો.');
+        var m = (r.body && (r.body.message || r.body.hint)) || ('HTTP ' + r.status);
+        throw authError(r.body && r.body.code || 'http_' + r.status, m === 'admin only' ? 'આ કામ ફક્ત ઍડમિન કરી શકે.' : m);
+      });
+    },
+
+    PENDING_TEXT: PENDING_TEXT,
     session: function () { return session; },
-    user: function () { return session ? session.user : null; },
+    /** {id, email, name, isAdmin, approved, subjects, standards} — from the server profile. */
+    user: function () {
+      if (!session) return null;
+      var p = session.profile || {}, u = session.user || {};
+      return {
+        id: u.id, email: u.email, name: p.name || (u.email || '').split('@')[0],
+        isAdmin: !!p.is_admin, role: p.is_admin ? 'admin' : 'teacher', approved: !!p.approved,
+        subjects: Array.isArray(p.subjects) ? p.subjects : [], standards: Array.isArray(p.standards) ? p.standards.map(Number) : []
+      };
+    },
     signedIn: function () { return !!(session && session.refresh_token); },
     onChange: function (fn) { subs.push(fn); },
 
@@ -198,65 +231,31 @@
     },
 
     signIn: function (email, password) {
-      var em = String(email || '').trim().toLowerCase();
-      var isAdmin = em === 'mahaanthakkar2008@gmail.com';
-
-      return call('POST', '/token?grant_type=password', { email: em, password: password })
-        .then(function (r) {
-          if (!isAdmin) {
-            return (QPG.approvals ? QPG.approvals.checkRemote(em) : Promise.resolve(false))
-              .then(function (isAppr) {
-                var metaAppr = r.user && r.user.user_metadata && r.user.user_metadata.approved === true;
-                if (!isAppr && !metaAppr) {
-                  if (r.access_token) {
-                    try { call('POST', '/logout?scope=local', null, r.access_token); } catch (e) {}
-                  }
-                  throw authError('pending_approval', 'તમારું એકાઉન્ટ હજુ મુખ્ય ઍડમિન દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. કૃપા કરીને મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) નો સંપર્ક કરો.');
-                }
-                var s = fromTokens(r);
-                s.user.approved = true;
-                return save(s).then(function () { return s; });
-              });
-          }
-          var s = fromTokens(r);
-          return save(s).then(function () { return s; });
-        });
+      return call('POST', '/token?grant_type=password', { email: String(email || '').trim().toLowerCase(), password: password }).then(accept);
     },
 
-    /** New account with selected subjects & standards. */
-    signUp: function (email, password, extraData) {
+    /**
+     * New teacher account. The name, subjects and standards go to the admin for approval.
+     * Resolves {confirm: true} (email link sent) or {pendingApproval: true}.
+     */
+    signUp: function (email, password, extra) {
       var redirect = appUrl();
-      var em = String(email || '').trim().toLowerCase();
-      var isAdmin = em === 'mahaanthakkar2008@gmail.com';
-      var userMeta = Object.assign({
-        name: extraData && extraData.name ? extraData.name : em.split('@')[0],
-        subjects: extraData && extraData.subjects ? extraData.subjects : ['physics'],
-        standards: extraData && extraData.standards ? extraData.standards : [11],
-        approved: isAdmin ? true : false,
-        role: isAdmin ? 'admin' : 'teacher'
-      }, extraData || {});
-
+      extra = extra || {};
       var body = {
-        email: em,
-        password: password,
-        data: userMeta
+        email: String(email || '').trim().toLowerCase(), password: password,
+        data: { name: extra.name || '', subjects: extra.subjects || [], standards: extra.standards || [] }
       };
-
       return call('POST', '/signup' + (redirect ? '?redirect_to=' + encodeURIComponent(redirect) : ''), body)
         .then(function (r) {
-          if (QPG.approvals) {
-            QPG.approvals.registerPending(Object.assign({ email: em }, userMeta));
-          }
-          if (r.access_token) {
-            if (!isAdmin && !userMeta.approved) {
-              return { confirm: false, pendingApproval: true, email: em };
-            }
-            var s = fromTokens(r);
-            return save(s).then(function () { return { session: s }; });
-          }
           if (r.user && Array.isArray(r.user.identities) && !r.user.identities.length) throw authError('user_already_exists', MESSAGES.user_already_exists);
           if (r.id && Array.isArray(r.identities) && !r.identities.length) throw authError('user_already_exists', MESSAGES.user_already_exists);
-          return { confirm: true, pendingApproval: !isAdmin, email: em };
+          if (r.access_token) {
+            return accept(r).then(function (s) { return { session: s }; }, function (e) {
+              if (e.auth === 'pending_approval') return { pendingApproval: true };
+              throw e;
+            });
+          }
+          return { confirm: true };
         });
     },
 

@@ -80,6 +80,7 @@
   }
 
   QPG.views.form = function (el, ctx) {
+    if (QPG.app.isAdmin() && QPG.auth.user()) QPG.approvals.ready().catch(function () { /* offline */ });
     var S = QPG.schema, app = QPG.app;
     var original = null, draft;
 
@@ -157,13 +158,10 @@
     }
 
     function drawWhere() {
-      var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths', 'science'];
-      var allowedStds = app.userStandards ? app.userStandards() : [8, 9, 10, 11, 12];
-      var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
-      var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
-
-      if (allowedSubs.indexOf(draft.subject) === -1 && subList.length) draft.subject = subList[0].id;
-      if (allowedStds.indexOf(Number(draft.std)) === -1 && stdList.length) draft.std = stdList[0];
+      var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return app.subjectsAllowed().indexOf(s.id) !== -1 || s.id === draft.subject; });
+      if (!original || ctx.mode === 'copy') app.fixSubjectStd(draft);   // a saved question keeps its own subject / standard
+      var stdList = app.stdsFor(draft.subject);
+      if (stdList.indexOf(Number(draft.std)) < 0) stdList = stdList.concat([Number(draft.std)]).sort(function (x, y) { return x - y; });
 
       var std = Number(draft.std);
       var chapters = QPG.syllabus.chapters(draft.subject, std);
@@ -172,9 +170,10 @@
       var isAdmin = app.isAdmin && app.isAdmin();
       var assignHtml = '';
       if (isAdmin) {
-        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
-        var curAssigned = (draft.assignedTo && draft.assignedTo[0]) || 'all';
-        var tOpts = '<option value="all"' + (curAssigned === 'all' ? ' selected' : '') + '>બધા શિક્ષકો (All)</option>' +
+        var teachers = QPG.approvals.getApprovedTeachers();
+        var curAssigned = (draft.assignedTo && draft.assignedTo[0]) || 'none';
+        var tOpts = '<option value="none"' + (curAssigned === 'none' ? ' selected' : '') + '>કોઈને નહીં</option>' +
+          '<option value="all"' + (curAssigned === 'all' ? ' selected' : '') + '>બધા શિક્ષકો</option>' +
           teachers.map(function (t) {
             return '<option value="' + esc(t.email) + '"' + (curAssigned === t.email ? ' selected' : '') + '>' + esc(t.name) + ' (' + esc(t.email) + ')</option>';
           }).join('');
@@ -329,7 +328,8 @@
     function onValue(e) {
       var t = e.target;
       if (t.hasAttribute && t.hasAttribute('data-assign-to')) {
-        draft.assignedTo = t.value === 'all' ? ['all'] : [t.value];
+        draft.assignedTo = t.value === 'none' ? [] : [t.value];
+        if (t.value !== 'none') draft.assignedEver = true;
         return;
       }
       var k = t.getAttribute && t.getAttribute('data-k');
@@ -337,7 +337,7 @@
       var v = t.value;
       if (t.hasAttribute('data-num')) v = v === '' ? '' : Number(v);
       setPath(draft, k, v);
-      if (k === 'subject') { draft.std = QPG.syllabus.DEFAULT_STD[draft.subject] || draft.std; draft.chapter = ''; draft.topic = ''; drawWhere(); }
+      if (k === 'subject') { draft.std = QPG.syllabus.DEFAULT_STD[draft.subject] || draft.std; app.fixSubjectStd(draft); draft.chapter = ''; draft.topic = ''; drawWhere(); }
       else if (k === 'std') { draft.chapter = ''; drawWhere(); }
       else if (k === 'type') { drawBody(); drawAnswer(); }
       refreshPreview();

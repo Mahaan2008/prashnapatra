@@ -81,7 +81,30 @@
     '</li>';
   }
 
+  /** Assign questions to a teacher ('all', an email, or 'none' to take the assignment back). Counts as a change, so it syncs. */
+  function assignTo(list, target) {
+    var now = new Date().toISOString();
+    list.forEach(function (q) {
+      q.assignedTo = target === 'none' ? [] : [target];
+      if (target !== 'none') q.assignedEver = true;
+      q.updatedAt = now; q.rev = (Number(q.rev) || 0) + 1;
+    });
+    return QPG.db.bulkPut('questions', list).then(function () { list.forEach(QPG.app.upsertLocal); });
+  }
+  function teacherOptions(current, withAll) {
+    var teachers = QPG.approvals.getApprovedTeachers();
+    return (withAll ? '<option value="none"' + (!current || current === 'none' ? ' selected' : '') + '>કોઈને નહીં (સોંપણી રદ)</option>' +
+      '<option value="all"' + (current === 'all' ? ' selected' : '') + '>બધા શિક્ષકો</option>' : '') +
+      teachers.map(function (t) {
+        return '<option value="' + esc(t.email) + '"' + (current === t.email ? ' selected' : '') + '>' + esc(t.name) + ' (' + esc(t.email) + ')</option>';
+      }).join('');
+  }
+  function noTeachers() {
+    QPG.ui.confirmDialog({ title: 'કોઈ મંજૂર શિક્ષક નથી', body: 'પહેલાં સેટિંગ્સ → "શિક્ષકો અને મંજૂરી" માં શિક્ષકને મંજૂર કરો (અથવા યાદી હજુ આવી રહી છે — થોડી વાર પછી ફરી પ્રયત્ન કરો).', ok: 'સમજાયું' });
+  }
+
   QPG.views.bank = function (el, ctx) {
+    if (QPG.app.isAdmin() && QPG.auth.user()) QPG.approvals.ready().catch(function () { /* offline */ });
     var state = QPG.app.state;
     var f = state.bankFilters;
     var isAdmin = QPG.app && QPG.app.isAdmin && QPG.app.isAdmin();
@@ -200,67 +223,33 @@
       } else if (act === 'answers') {
         state.showAnswers = !state.showAnswers; setAnswersLabel(); drawList();
       } else if (act === 'assign-teacher') {
-        var id = b.closest('.qcard').getAttribute('data-id');
-        var q = QPG.app.questionById(id);
-        if (!q) return;
-        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
-        if (!teachers.length) {
-          QPG.ui.confirmDialog({
-            title: 'કોઈ શિક્ષક મળ્યા નથી',
-            body: 'હજુ સુધી કોઈ શિક્ષક Approve થયેલ નથી. પહેલાં સેટિંગ્સમાંથી શિક્ષકને Approve કરો.',
-            ok: 'સમજાયું'
-          });
-          return;
-        }
-
-        var optsHtml = '<option value="all">બધા શિક્ષકો (All Teachers)</option>' +
-          teachers.map(function (t) {
-            var subs = (t.subjects || []).join(', ');
-            var stds = (t.standards || []).join(', ');
-            return '<option value="' + esc(t.email) + '">' + esc(t.name) + ' (' + esc(t.email) + ') — ' + subs + ' [Std ' + stds + ']</option>';
-          }).join('');
-
-        var modal = document.createElement('div');
-        modal.className = 'modal is-open';
-        modal.innerHTML =
-          '<div class="modal-card panel" style="max-width:480px">' +
-            '<h3>👨‍🏫 શિક્ષકને પ્રશ્ન સોંપો</h3>' +
-            '<p style="margin:4px 0 14px;color:var(--muted);font-size:14px">પસંદ કરેલા શિક્ષકના એકાઉન્ટમાં આ પ્રશ્ન દેખાશે.</p>' +
-            '<label class="field"><span class="lbl">શિક્ષક પસંદ કરો</span>' +
-              '<select class="input" data-assign-sel>' + optsHtml + '</select>' +
-            '</label>' +
+        var aq = QPG.app.questionById(b.closest('.qcard').getAttribute('data-id'));
+        if (!aq) return;
+        QPG.approvals.ready().catch(function () { /* offline */ }).then(function () {
+          if (!QPG.approvals.getApprovedTeachers().length) return noTeachers();
+          var modal = document.createElement('div');
+          modal.className = 'modal is-open';
+          modal.innerHTML = '<div class="modal-card panel" role="dialog" aria-modal="true" style="max-width:480px">' +
+            '<h2>શિક્ષકને પ્રશ્ન સોંપો</h2>' +
+            '<p style="margin:4px 0 14px;color:var(--muted);font-size:14.5px">સોંપેલો પ્રશ્ન એ શિક્ષકના એકાઉન્ટમાં આપોઆપ પહોંચશે. "કોઈને નહીં" કરો તો એમનામાંથી નીકળી જશે.</p>' +
+            '<label class="field"><span class="lbl">શિક્ષક</span><select class="input" data-assign-sel>' + teacherOptions((aq.assignedTo || [])[0], true) + '</select></label>' +
             '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">' +
               '<button type="button" class="btn btn-quiet" data-assign-cancel>રદ કરો</button>' +
-              '<button type="button" class="btn btn-primary" data-assign-ok>સોંપો</button>' +
-            '</div>' +
-          '</div>';
-
-        document.body.appendChild(modal);
-        modal.querySelector('[data-assign-cancel]').onclick = function () { modal.remove(); };
-        modal.querySelector('[data-assign-ok]').onclick = function () {
-          var selVal = modal.querySelector('[data-assign-sel]').value;
-          q.assignedTo = selVal === 'all' ? ['all'] : [selVal];
-          QPG.db.saveQuestion(q).then(function () {
-            QPG.app.upsertLocal(q);
-            modal.remove();
-            QPG.ui.toast(selVal === 'all' ? 'પ્રશ્ન બધા શિક્ષકોને સોંપાયો' : 'પ્રશ્ન ' + selVal + ' ને સોંપાયો');
-            drawList();
-          });
-        };
+              '<button type="button" class="btn btn-primary" data-assign-ok>સાચવો</button></div></div>';
+          document.body.appendChild(modal);
+          modal.querySelector('[data-assign-cancel]').onclick = function () { modal.remove(); };
+          modal.querySelector('[data-assign-ok]').onclick = function () {
+            var v = modal.querySelector('[data-assign-sel]').value;
+            assignTo([aq], v).then(function () {
+              modal.remove();
+              QPG.ui.toast(v === 'none' ? 'સોંપણી રદ કરી' : v === 'all' ? 'પ્રશ્ન બધા શિક્ષકોને સોંપાયો' : 'પ્રશ્ન ' + v + ' ને સોંપાયો');
+              drawList();
+            });
+          };
+        });
       } else if (act === 'bulk-assign') {
-        var teachers = QPG.approvals ? QPG.approvals.getApprovedTeachers() : [];
-        if (!teachers.length) {
-          QPG.ui.confirmDialog({
-            title: 'કોઈ શિક્ષક મળ્યા નથી',
-            body: 'હજુ સુધી કોઈ શિક્ષક Approve થયેલ નથી.',
-            ok: 'સમજાયું'
-          });
-          return;
-        }
-
-        var tOpts = teachers.map(function (t) {
-          return '<option value="' + esc(t.email) + '">' + esc(t.name) + ' (' + esc(t.email) + ')</option>';
-        }).join('');
+        if (!QPG.approvals.getApprovedTeachers().length) { QPG.approvals.ready().catch(function () {}); return noTeachers(); }
+        var tOpts = teacherOptions('', false) + '<option value="all">બધા શિક્ષકો</option><option value="none">કોઈને નહીં (સોંપણી રદ)</option>';
 
         var sOpts = QPG.syllabus.SUBJECTS.map(function (s) {
           return '<option value="' + s.id + '">' + esc(s.gu) + ' (' + esc(s.en) + ')</option>';
@@ -274,7 +263,7 @@
         modal.className = 'modal is-open';
         modal.innerHTML =
           '<div class="modal-card panel" style="max-width:500px">' +
-            '<h3>📤 પ્રશ્ન બેંક શિક્ષકને સોંપો (Bulk Assign)</h3>' +
+            '<h2>એક વિષય-ધોરણના બધા પ્રશ્નો સોંપો</h2>' +
             '<p style="margin:4px 0 14px;color:var(--muted);font-size:14px">કોઈ વિષય અને ધોરણના બધા પ્રશ્નો એકસાથે શિક્ષકને સોંપો.</p>' +
             '<div class="row row-2">' +
               '<label class="field"><span class="lbl">વિષય</span><select class="input" data-bulk-sub>' + sOpts + '</select></label>' +
@@ -302,13 +291,9 @@
             modal.remove();
             return;
           }
-          matches.forEach(function (q) {
-            q.assignedTo = [selTeacher];
-          });
-          QPG.db.bulkPut('questions', matches).then(function () {
-            matches.forEach(QPG.app.upsertLocal);
+          assignTo(matches, selTeacher).then(function () {
             modal.remove();
-            QPG.ui.toast(matches.length + ' પ્રશ્નો ' + selTeacher + ' ને સોંપવામાં આવ્યા!');
+            QPG.ui.toast(selTeacher === 'none' ? matches.length + ' પ્રશ્નોની સોંપણી રદ કરી' : matches.length + ' પ્રશ્નો ' + (selTeacher === 'all' ? 'બધા શિક્ષકોને' : selTeacher + ' ને') + ' સોંપ્યા');
             drawList();
           });
         };

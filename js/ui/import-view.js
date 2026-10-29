@@ -10,17 +10,12 @@
 
   QPG.views.importView = function (el) {
     var app = QPG.app, S = QPG.schema;
-    var allowedSubs = app.userSubjects ? app.userSubjects() : ['physics', 'maths', 'science'];
-    var allowedStds = app.userStandards ? app.userStandards() : [8, 9, 10, 11, 12];
-    var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return allowedSubs.indexOf(s.id) !== -1; });
-    var stdList = QPG.syllabus.STANDARDS.filter(function (s) { return allowedStds.indexOf(Number(s)) !== -1; });
-
+    var subList = QPG.syllabus.SUBJECTS.filter(function (s) { return app.subjectsAllowed().indexOf(s.id) !== -1; });
     var defaultSub = subList.length ? subList[0].id : 'physics';
-    var defaultStd = stdList.length ? stdList[0] : 11;
+    var defaultStd = QPG.syllabus.DEFAULT_STD[defaultSub] || 11;
 
     var last = app.state.importDefaults || { subject: defaultSub, std: defaultStd, chapter: '', marks: '', type: 'auto', difficulty: 'medium', source: '' };
-    if (allowedSubs.indexOf(last.subject) === -1 && subList.length) last.subject = subList[0].id;
-    if (allowedStds.indexOf(Number(last.std)) === -1 && stdList.length) last.std = stdList[0];
+    app.fixSubjectStd(last);
 
     var st = { source: 'file', defaults: last, items: null, report: null, fileName: '', filter: 'all', saving: false, shown: 30 };
 
@@ -44,15 +39,16 @@
                 '<b style="color:var(--ink-strong)">Gemini AI પ્રશ્નો & ગણિતનાં સૂત્રો (Equations) Import</b>' +
                 (hasGemini
                   ? '<span style="margin-left:8px;font-size:12px;background:#e6f4ec;color:#1d7a4c;padding:2px 8px;border-radius:99px;font-weight:700">✓ સક્રિય (Active)</span>'
-                  : '<span style="margin-left:8px;font-size:12px;background:#fff2d6;color:#8a5a00;padding:2px 8px;border-radius:99px">PDF અને સૂત્રો માટે Key દાખલ કરો</span>') +
+                  : '<span style="margin-left:8px;font-size:12px;background:#fff2d6;color:#8a5a00;padding:2px 8px;border-radius:99px">AI ચાલુ નથી — ઍડમિન સર્વર પર કી ગોઠવે, અથવા અહીં કી નાખો</span>') +
                 '<div style="font-size:13px;color:var(--muted)">PDF અને Word માંથી 100% સચોટ ગુજરાતી અને LaTeX સૂત્રો ($...$) લાવવા માટે.</div>' +
               '</div>' +
             '</div>' +
+            (QPG.gemini && QPG.gemini.serverAvailable() && QPG.auth.signedIn() ? '' :
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
-              '<input type="password" class="input input-sm" style="width:200px;background:#fff" placeholder="Gemini API Key" data-gemini-key value="' + esc(geminiKey) + '">' +
+              '<input type="password" class="input input-sm" style="width:200px;background:#fff" placeholder="Gemini API Key" data-gemini-key value="' + esc(geminiKey) + '" autocomplete="off">' +
               '<button type="button" class="btn btn-sm btn-primary" data-act="save-gemini-key">સાચવો / ચકાસો</button>' +
               '<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--ink);text-decoration:underline">મફત Key મેળવો ↗</a>' +
-            '</div>' +
+            '</div>') +
           '</div>' +
         '</div>';
 
@@ -78,7 +74,7 @@
         '</section>' +
         '<section class="panel"><h2>2. ફાઇલમાં ન લખ્યું હોય તો</h2><p class="muted-p">ફાઇલની કૉલમમાં વિષય, પ્રકરણ, ગુણ લખેલા હોય તો એ જ લેવાશે; નહીં તો આ મૂલ્ય વપરાશે.</p><div class="row row-4">' +
           '<label class="field"><span class="lbl">વિષય</span><select class="input" data-d="subject">' + subList.map(function (s) { return opt(s.id, s.gu, d.subject); }).join('') + '</select></label>' +
-          '<label class="field"><span class="lbl">ધોરણ</span><select class="input" data-d="std">' + stdList.map(function (s) { return opt(s, 'ધોરણ ' + s, d.std); }).join('') + '</select></label>' +
+          '<label class="field"><span class="lbl">ધોરણ</span><select class="input" data-d="std">' + app.stdsFor(d.subject).map(function (s) { return opt(s, 'ધોરણ ' + s, d.std); }).join('') + '</select></label>' +
           '<label class="field"><span class="lbl">પ્રકરણ</span><select class="input" data-d="chapter">' + opt('', '— પસંદ કરો —', d.chapter) + chapters.map(function (c) { return opt(c.no, c.no + '. ' + c.name, d.chapter); }).join('') + '</select></label>' +
           '<label class="field"><span class="lbl">ગુણ</span><input class="input" type="number" min="0.5" step="0.5" data-d="marks" value="' + esc(d.marks) + '" placeholder="મથાળા/કૉલમ પરથી"></label>' +
           '<label class="field"><span class="lbl">પ્રકાર</span><select class="input" data-d="type">' + opt('auto', 'આપોઆપ ઓળખો', d.type) + S.TYPES.map(function (t) { return opt(t.id, t.gu, d.type); }).join('') + '</select></label>' +
@@ -412,7 +408,7 @@
       QPG.db.bulkPut('questions', list).then(function () {
         list.forEach(app.upsertLocal);
         app.state.importDefaults = st.defaults;
-        if (QPG.sync) QPG.sync.syncNow({ notify: true });
+        if (QPG.sync && QPG.sync.now) QPG.sync.now();   // also sent automatically after every save
         var left = st.items.length - list.length;
         review.innerHTML = '<div class="panel imp-done">' + icon('ok') + '<div><h2>' + list.length + ' પ્રશ્નો પ્રશ્ન બેંકમાં સેવ થયા</h2>' +
           (left ? '<p class="muted-p">' + left + ' પ્રશ્નો સેવ ન કર્યા (ડુપ્લિકેટ અથવા તમે નાપસંદ કર્યા).</p>' : '') +
@@ -431,7 +427,7 @@
       if (t.hasAttribute('data-d')) {
         var k = t.getAttribute('data-d');
         st.defaults[k] = t.type === 'number' || k === 'std' ? (t.value === '' ? '' : Number(t.value)) : t.value;
-        if (k === 'subject') { st.defaults.std = QPG.syllabus.DEFAULT_STD[t.value] || 11; st.defaults.chapter = ''; }
+        if (k === 'subject') { st.defaults.std = QPG.syllabus.DEFAULT_STD[t.value] || 11; st.defaults.chapter = ''; app.fixSubjectStd(st.defaults); }
         if (k === 'subject' || k === 'std') drawStep1();
         return;
       }

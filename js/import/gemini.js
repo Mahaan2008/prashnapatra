@@ -11,14 +11,24 @@
   var STORAGE_KEY = 'qpg_gemini_api_key';
   var DEFAULT_KEY = '';
 
-  // Verified working Gemini models (v1beta)
-  var MODELS = [
-    'gemini-flash-lite-latest',
-    'gemini-flash-latest',
-    'gemini-3.8-flash',
-    'gemini-3.5-flash',
-    'gemini-3-flash-preview'
-  ];
+  // Current Gemini models (ai.google.dev/gemini-api/docs/models), best first; the next one is tried
+  // only when a model is missing, busy or rate-limited.
+  var MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+
+  /* The admin's key lives on the server (Vercel function /api/gemini), so approved teachers can use AI
+     without a key of their own. A key saved on this device is used only when the server has none. */
+  var server = { checked: false, available: false };
+  function checkServer() {
+    if (typeof fetch === 'undefined' || typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return Promise.resolve(false);
+    return fetch('/api/gemini', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (j) { server.checked = true; server.available = !!(j && j.server_key); return server.available; })
+      .catch(function () { server.checked = true; server.available = false; return false; });
+  }
+  if (typeof window !== 'undefined') setTimeout(checkServer, 0);
+  function useServer() {
+    var a = typeof self !== 'undefined' && self.QPG && self.QPG.auth;
+    return server.available && !!(a && a.signedIn());
+  }
 
   function getApiKey() {
     try {
@@ -37,23 +47,46 @@
     } catch (e) {}
   }
 
-  function hasApiKey() {
-    var k = getApiKey();
-    return !!(k && k.trim().length > 10);
+  function localKey() { var k = getApiKey(); return k && k.trim().length > 10 ? k.trim() : ''; }
+  /** AI can be used: the server has a key (and the user is logged in), or this device has one. */
+  function hasApiKey() { return useServer() || !!localKey(); }
+
+  function directUrl(model, key) {
+    return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
   }
 
-  /**
-   * Build URLs: uses local proxy on localhost to avoid browser CORS/ad-blocker blocks,
-   * with automatic direct fallback.
-   */
-  function buildUrls(model, key) {
-    var k = encodeURIComponent(key);
-    var directUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + k;
-    if (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      var proxyUrl = '/api/gemini/v1beta/models/' + model + ':generateContent?key=' + k;
-      return [proxyUrl, directUrl];
+  /** One request to one model → {status, json}. Through the server when it has the key, else directly with the device key. */
+  async function request(model, payload, key, signal) {
+    var res;
+    if (!key && useServer()) {
+      var token = await self.QPG.auth.token();
+      res = await fetch('/api/gemini', {
+        method: 'POST', signal: signal,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(Object.assign({ model: model }, payload))
+      });
+    } else {
+      res = await fetch(directUrl(model, key), {
+        method: 'POST', signal: signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
     }
-    return [directUrl];
+    var json = await res.json().catch(function () { return {}; });
+    return { status: res.status, json: json };
+  }
+
+  /** Turn a failed answer into a Gujarati message; .fatal = no point trying another model. */
+  function failure(r) {
+    var msg = (r.json && r.json.error && (r.json.error.message || r.json.error)) || ('HTTP ' + r.status);
+    var e;
+    if (/API key not valid|API_KEY_INVALID|PERMISSION_DENIED/i.test(String(msg))) e = new Error('Gemini API Key ખોટી છે અથવા માન્ય નથી — નવી કી ગોઠવો.');
+    else if (msg === 'not_approved') e = new Error('AI વાપરવા માટે ઍડમિનની મંજૂરી જોઈએ.');
+    else if (msg === 'login_expired' || msg === 'login_required') e = new Error('લૉગિન પૂરું થઈ ગયું છે — ફરી લૉગિન કરો.');
+    else if (msg === 'no_server_key') e = new Error('AI માટે સર્વર પર કી ગોઠવેલી નથી — ઍડમિન Vercel માં GEMINI_API_KEY ઉમેરે, અથવા સેટિંગ્સમાં તમારી કી નાખો.');
+    else if (r.status === 413) e = new Error('ફાઇલ બહુ મોટી છે (સર્વર મારફતે 4 MB સુધી) — ઓછાં પાનાંની PDF વાપરો.');
+    else e = new Error(String(msg));
+    // another model may help only when this one is missing, overloaded or rate-limited
+    e.fatal = !(r.status === 404 || r.status === 429 || r.status >= 500) || msg === 'no_server_key';
+    return e;
   }
 
   /**
@@ -80,42 +113,18 @@
     }
   }
 
-  /** Test whether an API key works with a minimal prompt */
+  /** Test whether a key typed on this device works (direct call with that key). */
   async function testApiKey(key) {
     var k = (key || getApiKey() || '').trim();
     if (!k) throw new Error('API Key દાખલ કરેલી નથી.');
-    var models = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.8-flash'];
     var lastErr = null;
-
-    for (var i = 0; i < models.length; i++) {
-      var urls = buildUrls(models[i], k);
-      for (var u = 0; u < urls.length; u++) {
-        var url = urls[u];
-        try {
-          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-          var timer = controller ? setTimeout(function () { controller.abort(); }, 8000) : null;
-          var res = await fetch(url, {
-            method: 'POST',
-            signal: controller ? controller.signal : undefined,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
-              generationConfig: { responseMimeType: 'application/json' }
-            })
-          });
-          if (timer) clearTimeout(timer);
-          if (res.ok) return true;
-          var err = await res.json().catch(function () { return {}; });
-          var msg = (err.error && err.error.message) || ('HTTP Error ' + res.status);
-          if (/API key not valid|API_KEY_INVALID|PERMISSION_DENIED/i.test(msg)) {
-            throw new Error('આ API Key માન્ય નથી. કૃપા કરીને Google AI Studio માંથી નવી કી લાવીને દાખલ કરો.');
-          }
-          lastErr = new Error(msg);
-        } catch (e) {
-          lastErr = e;
-          if (/API Key માન્ય નથી/i.test(e.message)) throw e;
-        }
-      }
+    for (var i = 0; i < MODELS.length; i++) {
+      try {
+        var r = await request(MODELS[i], { contents: [{ parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }], generationConfig: { responseMimeType: 'application/json' } }, k);
+        if (r.status >= 200 && r.status < 300) return true;
+        lastErr = failure(r);
+        if (lastErr.fatal) throw lastErr;
+      } catch (e) { lastErr = e; if (e.fatal) throw e; }
     }
     throw lastErr || new Error('API Key ચકાસી શકાઈ નહીં. ઇન્ટરનેટ કનેક્શન તપાસો.');
   }
@@ -194,64 +203,50 @@ Return ONLY a valid JSON array of question objects.`;
     });
   }
 
+  /** callGemini always gives a list; tasks that ask for one object take the first. */
+  function single(res) {
+    var r = Array.isArray(res) ? res[0] : res;
+    if (typeof r === 'string') r = safeParseJson(r);
+    return r && typeof r === 'object' ? r : null;
+  }
+
   async function callGemini(parts, apiKey, timeoutMs) {
-    var k = (apiKey || getApiKey() || '').trim();
-    if (!k) throw new Error('Gemini API Key દાખલ કરેલી નથી. ઉપર "Gemini API Key" બોક્સમાં કી દાખલ કરો.');
-
-    var models = MODELS;
+    var key = (apiKey || '').trim();
+    if (!key && !useServer()) key = localKey();
+    if (!key && !useServer()) throw new Error('Gemini AI ચાલુ નથી — ઍડમિન સર્વર પર કી ગોઠવે, અથવા સેટિંગ્સમાં "Gemini API Key" નાખો.');
+    var payload = { contents: [{ parts: parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1 } };
+    var limit = Math.max(timeoutMs || 15000, 45000);   // big PDFs take time; one wait per model
     var lastError = null;
-    var limit = timeoutMs || 15000;
 
-    for (var i = 0; i < models.length; i++) {
-      var model = models[i];
-      var urls = buildUrls(model, k);
-
-      for (var u = 0; u < urls.length; u++) {
-        var url = urls[u];
-        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = controller ? setTimeout(function () { controller.abort(); }, limit) : null;
-
-        try {
-          var res = await fetch(url, {
-            method: 'POST',
-            signal: controller ? controller.signal : undefined,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: parts }],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.1
-              }
-            })
-          });
-
-          if (timer) clearTimeout(timer);
-
-          if (!res.ok) {
-            var errData = await res.json().catch(function () { return {}; });
-            var msg = (errData.error && errData.error.message) || ('HTTP Error ' + res.status);
-            if (/API key not valid|API_KEY_INVALID|PERMISSION_DENIED/i.test(msg)) {
-              throw new Error('Gemini API Key ખોટી છે અથવા માન્ય નથી. કૃપા કરીને નવી કી દાખલ કરો.');
-            }
-            throw new Error(msg);
-          }
-
-          var json = await res.json();
-          var candidate = json.candidates && json.candidates[0];
-          var outText = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text;
-          if (!outText) throw new Error('Gemini તરફથી કોઈ જવાબ મળ્યો નહીં.');
-
-          var parsed = safeParseJson(outText);
-          if (!parsed) throw new Error('Gemini જવાબનું JSON વાંચી શકાયું નહીં.');
-          if (Array.isArray(parsed)) return parsed;
-          if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
-          if (parsed.items && Array.isArray(parsed.items)) return parsed.items;
-          return [parsed];
-        } catch (err) {
-          if (timer) clearTimeout(timer);
-          lastError = err;
-          if (/API Key ખોટી છે|API key not valid|PERMISSION_DENIED/i.test(err.message)) throw err;
+    for (var i = 0; i < MODELS.length; i++) {
+      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timer = controller ? setTimeout(function () { controller.abort(); }, limit) : null;
+      try {
+        var r = await request(MODELS[i], payload, key, controller ? controller.signal : undefined);
+        if (timer) clearTimeout(timer);
+        if (r.status < 200 || r.status >= 300) {
+          // the server has no key but this device does: use it
+          if (r.json && r.json.error === 'no_server_key' && localKey() && !key) { key = localKey(); i--; continue; }
+          lastError = failure(r);
+          if (lastError.fatal) throw lastError;
+          continue;
         }
+        var json = r.json;
+        var candidate = json.candidates && json.candidates[0];
+        var outText = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text;
+        if (!outText) throw new Error('Gemini તરફથી કોઈ જવાબ મળ્યો નહીં.');
+        var parsed = safeParseJson(outText);
+        if (!parsed) throw new Error('Gemini જવાબનું JSON વાંચી શકાયું નહીં.');
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions;
+        if (parsed.items && Array.isArray(parsed.items)) return parsed.items;
+        return [parsed];
+      } catch (err) {
+        if (timer) clearTimeout(timer);
+        if (err && err.name === 'AbortError') err = new Error('Gemini એ સમયસર જવાબ ન આપ્યો — ફરી પ્રયત્ન કરો, અથવા નાની ફાઇલ વાપરો.');
+        lastError = err;
+        if (err.fatal) throw err;
+        if (/JSON|જવાબ મળ્યો નહીં|સમયસર/.test(err.message)) throw err;   // the model answered; another model won't help
       }
     }
     throw lastError || new Error('Gemini API સાથે જોડાણ થઈ શક્યું નહીં.');
@@ -543,7 +538,7 @@ Return ONLY a valid JSON array of question objects.`;
       'Return ONLY a valid JSON object: { "answer": string, "solution": string }';
 
     var res = await callGemini([{ text: prompt }], apiKey, 15000);
-    return res;
+    return single(res);
   }
 
   function parseTemplateLocally(text, fileName, defaults) {
@@ -673,8 +668,8 @@ Return ONLY a valid JSON array of question objects.`;
       extractedText = String(fileOrText || '');
     }
 
-    var key = apiKey || getApiKey();
-    if (!key) {
+    var key = apiKey || '';
+    if (!key && !hasApiKey()) {
       return parseTemplateLocally(extractedText, fileName, defaults);
     }
 
@@ -733,7 +728,7 @@ Return ONLY a valid JSON array of question objects.`;
 
     try {
       var raw = await callGemini(parts, key, 35000);
-      var parsed = safeParseJson(raw);
+      var parsed = single(raw);
       if (!parsed || typeof parsed !== 'object') throw new Error('Invalid JSON from Gemini');
 
       parsed.id = 'custom-' + Date.now();
@@ -755,6 +750,8 @@ Return ONLY a valid JSON array of question objects.`;
 
   return {
     getApiKey: getApiKey,
+    checkServer: checkServer,
+    serverAvailable: function () { return server.available; },
     setApiKey: setApiKey,
     hasApiKey: hasApiKey,
     testApiKey: testApiKey,

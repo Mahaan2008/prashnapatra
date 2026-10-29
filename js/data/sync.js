@@ -59,6 +59,7 @@
     }).then(function (r) {
       if (r.status >= 200 && r.status < 300) return r.body;
       if (r.status === 401) throw syncError({ kind: 'signedout', retry: false, text: 'લૉગિન પૂરું થઈ ગયું છે — ફરી લૉગિન કરો.' });
+      if (r.body && r.body.hint === 'pending_approval') throw syncError({ kind: 'signedout', retry: false, text: QPG.auth.PENDING_TEXT });
       throw syncError(S.classify(r.status, r.body, online()));
     });
   }

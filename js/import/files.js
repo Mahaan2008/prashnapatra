@@ -102,5 +102,28 @@
     });
   }
 
-  QPG.files = { readAsText: readAsText, readXlsx: readXlsx, readDocx: readDocx, htmlToLines: htmlToLines, parseXml: parseXml };
+  /** A picked picture, resized (longest side 1200 px) so stored questions stay small. Resolves to a data URL. */
+  function readImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type)) { reject(new Error('ફક્ત ફોટો/ચિત્ર ફાઇલ પસંદ કરો.')); return; }
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var max = 1200, w = img.naturalWidth, h = img.naturalHeight;
+        var k = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * k); c.height = Math.round(h * k);
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        var png = file.type === 'image/png' && c.width * c.height < 700000;
+        resolve(c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('આ ચિત્ર ખૂલી શક્યું નહીં.')); };
+      img.src = url;
+    });
+  }
+
+  QPG.files = { readAsText: readAsText, readXlsx: readXlsx, readDocx: readDocx, readImage: readImage, htmlToLines: htmlToLines, parseXml: parseXml };
 })(typeof self !== 'undefined' ? self : this);

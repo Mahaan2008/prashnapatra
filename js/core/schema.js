@@ -96,6 +96,7 @@
       createdBy: q.createdBy || '',
       creatorName: q.creatorName || '',
       assignedTo: Array.isArray(q.assignedTo) ? q.assignedTo : (q.assignedTo ? [q.assignedTo] : []),
+      assignedEver: !!q.assignedEver,
       createdAt: q.createdAt || t,
       updatedAt: t,
       deletedAt: q.deletedAt || null,

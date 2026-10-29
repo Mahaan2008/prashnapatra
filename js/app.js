@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var QPG = root.QPG;
-  var VERSION = '0.6.0';
+  var VERSION = '0.7.1';
   var DEMO_DATE = '2026-01-01T00:00:00.000Z';
 
   var state = {
@@ -30,28 +30,49 @@
     },
     go: null, // set below
 
+    /** Who is logged in comes from the server profile (QPG.auth.user()); the preview has no login. */
     isAdmin: function () {
       var u = QPG.auth && QPG.auth.user();
-      if (!u || !u.email) return false;
-      return u.email.toLowerCase().trim() === 'mahaanthakkar2008@gmail.com';
+      if (!u) return !QPG.sync.available();
+      return !!u.isAdmin;
     },
 
     userSubjects: function () {
-      if (app.isAdmin()) return ['physics', 'maths', 'science'];
+      var all = ['physics', 'maths', 'science'];
       var u = QPG.auth && QPG.auth.user();
-      if (!u) return ['physics', 'maths', 'science'];
-      var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
-      var subs = reg.subjects || u.subjects || [];
-      return Array.isArray(subs) && subs.length ? subs : ['physics'];
+      if (!u || u.isAdmin) return all;
+      var subs = u.subjects.filter(function (s) { return all.indexOf(s) >= 0; });
+      return subs.length ? subs : ['physics'];
     },
 
     userStandards: function () {
-      if (app.isAdmin()) return [8, 9, 10, 11, 12];
+      var all = [8, 9, 10, 11, 12];
       var u = QPG.auth && QPG.auth.user();
-      if (!u) return [8, 9, 10, 11, 12];
-      var reg = (QPG.approvals && QPG.approvals.getUser(u.email)) || {};
-      var stds = reg.standards || u.standards || [];
-      return Array.isArray(stds) && stds.length ? stds.map(Number) : [11];
+      if (!u || u.isAdmin) return all;
+      var stds = u.standards.filter(function (s) { return all.indexOf(s) >= 0; });
+      return stds.length ? stds : [11];
+    },
+
+    /** Standards this user may pick for a subject (and that the syllabus has). */
+    stdsFor: function (subject) {
+      var mine = app.userStandards(), known = QPG.syllabus.standardsFor(subject);
+      var both = mine.filter(function (n) { return known.indexOf(n) >= 0; });
+      return both.length ? both : (known.length ? known : mine);
+    },
+    /** Subjects this user may pick (those with at least one allowed standard first). */
+    subjectsAllowed: function () {
+      var subs = app.userSubjects(), mine = app.userStandards();
+      var ok = subs.filter(function (s) { return QPG.syllabus.standardsFor(s).some(function (n) { return mine.indexOf(n) >= 0; }); });
+      return ok.length ? ok : subs;
+    },
+    /** Make {subject, std} a pair that exists and that this user may use. Returns true when it changed. */
+    fixSubjectStd: function (o) {
+      var before = o.subject + '/' + o.std, subs = app.subjectsAllowed();
+      if (subs.indexOf(o.subject) < 0) o.subject = subs[0];
+      var stds = app.stdsFor(o.subject), pref = QPG.syllabus.DEFAULT_STD[o.subject];
+      if (stds.indexOf(Number(o.std)) < 0) o.std = stds.indexOf(pref) >= 0 ? pref : stds[0];
+      o.std = Number(o.std);
+      return before !== o.subject + '/' + o.std;
     },
 
     userQuestions: function () {
@@ -241,8 +262,35 @@
     });
   }
 
+  /**
+   * Ask the server again whether this account is still approved (and for its subjects / standards).
+   * Approval taken back by the admin → log out on this device. No internet → keep working.
+   */
+  function checkAccountLater() {
+    setTimeout(function () {
+      QPG.auth.refreshProfile().then(function (r) {
+        if (r === 'revoked') {
+          return QPG.sync.signOut().then(function () {
+            currentPath = '/login?msg=' + encodeURIComponent('ઍડમિને તમારી મંજૂરી રદ કરી છે, એટલે આ ઉપકરણમાંથી લૉગઆઉટ થયું છે. પ્રશ્ન હોય તો ઍડમિનનો સંપર્ક કરો.');
+            app.guard = null;
+            render();
+          });
+        }
+        if (r === 'ok') {
+          if (app.isAdmin() && QPG.approvals) QPG.approvals.load().catch(function () { /* offline */ });
+          if (SAFE_TO_REDRAW[currentRouteView()] && !(app.guard && app.guard())) app.rerender();
+        }
+      });
+    }, 800);
+  }
+  function currentRouteView() {
+    var r = ROUTES.find(function (x) { return x.re.test(parsePath(currentPath).path); });
+    return r ? r.view : '';
+  }
+
   /** Right after a successful login on this device. */
   app.afterLogin = function () {
+    if (app.isAdmin() && QPG.approvals) QPG.approvals.load().catch(function () { /* offline */ });
     return QPG.sync.begin()
       .then(seedDemoOnce)
       .then(app.refreshQuestions)
@@ -282,6 +330,7 @@
         else if (linkResult.type === 'signup' || linkResult.type === 'email') setTimeout(function () { QPG.ui.toast('ઇમેઇલ ચકાસાયો — લૉગિન થઈ ગયું'); }, 300);
         else if (linkResult.error) currentPath = '/login?msg=' + encodeURIComponent(linkResult.error);
         if (!QPG.auth.signedIn()) return null;
+        checkAccountLater();
         return QPG.sync.init().then(seedDemoOnce).then(function () {
           // first login on this device may have replaced the local data
           return app.refreshQuestions().then(function () { return QPG.db.templateOverrides(); }).then(function (o) { state.templateOverrides = o; });

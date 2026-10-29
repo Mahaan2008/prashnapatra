@@ -636,3 +636,29 @@ body.signed-out .main { margin-left: 0; padding-bottom: 32px; }
 .auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; }
 .linkish { background: none; border: 0; padding: 4px 0; color: var(--ink); font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; }
 [data-auth-msg] .notice { margin-bottom: 14px; }
+
+/* ---------- admin: teachers ---------- */
+.admin-panel { border: 2px solid var(--ink); }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.admin-head h2 { margin: 0; }
+.chk-row { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 10px; font-size: 15px; }
+.chk-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.teacher-list { list-style: none; margin: 0; padding: 0; }
+.teacher-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.teacher-list > li:first-child { border-top: 0; }
+.teacher-list small { color: var(--muted); word-break: break-all; }
+.t-perm { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.t-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; }
+.t-edit { grid-column: 1 / -1; background: var(--page); border-radius: var(--radius-sm); padding: 10px 12px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; vertical-align: 1px; }
+.tag-ok { background: var(--green-wash); color: var(--green); }
+.tag-wait { background: var(--amber-wash); color: var(--amber); }
+.empty-mini { padding: 14px; text-align: center; color: var(--muted); border: 1px dashed var(--rule-strong); border-radius: var(--radius-sm); }
+.admin-add { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.admin-add summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+@media (max-width: 600px) { .teacher-list > li { grid-template-columns: minmax(0, 1fr); } .t-acts { justify-content: flex-start; } }
+
+/* dialogs built from a div (assign questions) */
+.modal { position: fixed; inset: 0; z-index: 80; background: rgba(20, 30, 60, .38); display: grid; place-items: center; padding: 16px; }
+.modal-card { width: 100%; max-height: calc(100vh - 32px); overflow: auto; margin: 0; }
+.modal-card h2 { font-size: 19px; margin: 0 0 6px; }
