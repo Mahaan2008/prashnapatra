@@ -142,9 +142,41 @@
     init: function () {
       var h = consumeHash();
       if (h && h.tokens) {
-        return save(fromTokens(h.tokens)).then(function () { return { type: h.type }; });
+        var s = fromTokens(h.tokens);
+        var em = (s.user && s.user.email) ? s.user.email.toLowerCase().trim() : '';
+        var isAdmin = em === 'mahaanthakkar2008@gmail.com';
+        if (isAdmin) {
+          return save(s).then(function () { return { type: h.type }; });
+        }
+        // Non-admin teacher: MUST BE APPROVED by admin!
+        return (QPG.approvals ? QPG.approvals.checkRemote(em) : Promise.resolve(false))
+          .then(function (isAppr) {
+            if (!isAppr && !s.user.approved) {
+              if (s.access_token) {
+                try { call('POST', '/logout?scope=local', null, s.access_token); } catch (e) {}
+              }
+              session = null;
+              return save(null).then(function () {
+                return {
+                  error: 'તમારું ઇમેઇલ સફળતાપૂર્વક ચકાસાયું છે! પરંતુ તમારું એકાઉન્ટ હજુ મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. ઍડમિન Approve કરશે તે પછી જ તમે લૉગિન કરી શકશો.'
+                };
+              });
+            }
+            s.user.approved = true;
+            return save(s).then(function () { return { type: h.type }; });
+          });
       }
       return QPG.db.getMeta('authSession').then(function (s) {
+        if (s && s.user && s.user.email && s.user.email.toLowerCase().trim() !== 'mahaanthakkar2008@gmail.com') {
+          var em = s.user.email.toLowerCase().trim();
+          var isAppr = (QPG.approvals && QPG.approvals.isApproved(em, s.user));
+          if (!isAppr) {
+            session = null;
+            return QPG.db.delMeta('authSession').then(function () {
+              return { error: 'તમારું એકાઉન્ટ હજુ ઍડમિન દ્વારા મંજૂર (Approve) થયેલ નથી.' };
+            });
+          }
+        }
         session = s || null;
         if (h && h.error) {
           return { error: h.error === 'otp_expired' ? 'ઇમેઇલની લિંક જૂની થઈ ગઈ છે — ફરી લૉગિન / પાસવર્ડ રીસેટ કરો.' : ('ઇમેઇલની લિંક ચાલી નહીં: ' + (h.text || h.error)) };
@@ -172,13 +204,19 @@
       return call('POST', '/token?grant_type=password', { email: em, password: password })
         .then(function (r) {
           if (!isAdmin) {
-            var isAppr = (QPG.approvals && QPG.approvals.isApproved(em, r.user));
-            if (!isAppr) {
-              if (r.access_token) {
-                try { call('POST', '/logout?scope=local', null, r.access_token); } catch (e) {}
-              }
-              throw authError('pending_approval', 'તમારું એકાઉન્ટ હજુ ઍડમિન દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. કૃપા કરીને મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) નો સંપર્ક કરો.');
-            }
+            return (QPG.approvals ? QPG.approvals.checkRemote(em) : Promise.resolve(false))
+              .then(function (isAppr) {
+                var metaAppr = r.user && r.user.user_metadata && r.user.user_metadata.approved === true;
+                if (!isAppr && !metaAppr) {
+                  if (r.access_token) {
+                    try { call('POST', '/logout?scope=local', null, r.access_token); } catch (e) {}
+                  }
+                  throw authError('pending_approval', 'તમારું એકાઉન્ટ હજુ મુખ્ય ઍડમિન દ્વારા મંજૂર (Approve) કરવામાં આવ્યું નથી. કૃપા કરીને મુખ્ય ઍડમિન (mahaanthakkar2008@gmail.com) નો સંપર્ક કરો.');
+                }
+                var s = fromTokens(r);
+                s.user.approved = true;
+                return save(s).then(function () { return s; });
+              });
           }
           var s = fromTokens(r);
           return save(s).then(function () { return s; });

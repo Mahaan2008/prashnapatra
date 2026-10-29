@@ -250,13 +250,17 @@
 
     function drawAnswer() {
       var t = draft.type, h = '';
+      var solveBtn = '<button type="button" class="btn btn-sm" data-act="gemini-solve-single" style="background:#e8f0fe;color:#1967d2;border:1px solid #c2e7ff;font-size:12px;padding:2px 8px;font-weight:600">✨ Gemini વડે સાચો જવાબ શોધો</button>';
       if (t === 'mcq' || t === 'assertion_reason') {
-        h += '<div class="field" data-field="answer"><span class="lbl">સાચો જવાબ</span><div class="answer-pick" role="radiogroup">' +
+        h += '<div class="field" data-field="answer">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span class="lbl" style="margin:0">સાચો જવાબ</span>' + solveBtn + '</div>' +
+          '<div class="answer-pick" role="radiogroup">' +
           ['', 'A', 'B', 'C', 'D'].map(function (L) {
             return '<label><input type="radio" name="fq-ans" data-k="answer" value="' + L + '"' + ((draft.answer || '') === L ? ' checked' : '') + '><span>' + (L ? '(' + L + ')' : 'ખબર નથી') + '</span></label>';
           }).join('') + '</div><div class="field-error" hidden></div></div>';
       } else {
-        h += textarea('answer', 'ટૂંકો જવાબ (Answer key માં આવશે)', 2, t === 'match_columns' ? 'દા.ત. 1 → c, 2 → a, 3 → b' : '');
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span class="lbl" style="margin:0">ટૂંકો જવાબ (Answer key માં આવશે)</span>' + solveBtn + '</div>' +
+          textarea('answer', '', 2, t === 'match_columns' ? 'દા.ત. 1 → c, 2 → a, 3 → b' : '');
       }
       h += textarea('solution', 'ઉકેલ / સમજૂતી (વૈકલ્પિક)', 4);
       $('[data-answer]').innerHTML = h;
@@ -368,6 +372,42 @@
         case 'del-sub': draft.subparts.splice(i, 1); if (!draft.subparts.length) draft.subparts = [{ text: '', options: [] }]; break;
         case 'sub-opts': var p = draft.subparts[i]; p.options = p.options && p.options.length ? [] : ['', '', '', '']; break;
         case 'del-img': draft.image = ''; break;
+        case 'gemini-solve-single':
+          if (!QPG.gemini || !QPG.gemini.hasApiKey()) {
+            QPG.ui.toast('Gemini AI વાપરવા માટે સેટિંગ્સમાંથી API Key દાખલ કરો.');
+            return;
+          }
+          if (!draft.text && !draft.assertion) {
+            QPG.ui.toast('પહેલાં પ્રશ્નનું લખાણ લખો.');
+            return;
+          }
+          var origBtnText = b.textContent;
+          b.textContent = 'જવાબ શોધે છે…';
+          b.disabled = true;
+          QPG.gemini.solveSingleQuestion(draft, { subject: draft.subject, std: draft.std }).then(function (res) {
+            b.textContent = origBtnText;
+            b.disabled = false;
+            if (res && res.answer) {
+              var ans = String(res.answer).trim();
+              if (draft.type === 'mcq' || draft.type === 'assertion_reason') {
+                var m = ans.match(/\b([A-D])\b/i);
+                draft.answer = m ? m[1].toUpperCase() : ans.charAt(0).toUpperCase();
+              } else {
+                draft.answer = ans;
+              }
+              if (res.solution && !draft.solution) draft.solution = res.solution;
+              drawAnswer();
+              refreshPreview();
+              QPG.ui.toast('✓ સાચો જવાબ પસંદ થયો: (' + draft.answer + ')');
+            } else {
+              QPG.ui.toast('જવાબ ઓળખાયો નહીં.');
+            }
+          }).catch(function (err) {
+            b.textContent = origBtnText;
+            b.disabled = false;
+            QPG.ui.toast('ભૂલ: ' + (err && err.message || err));
+          });
+          return;
         default: return;
       }
       drawBody(); drawPreview();

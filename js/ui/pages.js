@@ -116,7 +116,7 @@
         '<p class="auth-lead">' + (signup ? 'એક જ એકાઉન્ટથી ફોન અને લેપટોપ બંનેમાં તમારા પ્રશ્નો આપોઆપ સરખા રહેશે.'
           : forgot ? 'તમારો ઇમેઇલ લખો — નવો પાસવર્ડ બનાવવાની લિંક મોકલીશું.'
           : 'તમારા ઇમેઇલ અને પાસવર્ડથી લૉગિન કરો — તમારો બધો ડેટા આપોઆપ આવી જશે.') + '</p>' +
-        (message || note ? '<div data-auth-msg>' + (message || '<div class="notice notice-info">' + icon('info') + '<div>' + esc(note) + '</div></div>') + '</div>' : '<div data-auth-msg></div>') +
+        (message || note ? '<div data-auth-msg>' + (message || '<div class="notice notice-error" style="background:#fef2f2;color:#991b1b;border:1px solid #f87171;padding:12px;border-radius:6px;line-height:1.5;display:flex;align-items:flex-start;gap:8px">' + icon('error') + '<div>' + esc(note) + '</div></div>') + '</div>' : '<div data-auth-msg></div>') +
         '<form data-auth-form novalidate>' +
           (signup ? '<label class="field"><span class="lbl">શિક્ષકનું પૂરું નામ</span><input class="input" type="text" name="name" placeholder="દા.ત. રમેશભાઈ પટેલ" required></label>' : '') +
           '<label class="field"><span class="lbl">ઇમેઇલ</span><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></label>' +
@@ -240,8 +240,39 @@
     }).join('');
 
     return '<section class="panel" data-admin-panel style="border: 2px solid var(--accent); background: rgba(59,130,246,0.03); margin-bottom: 20px">' +
-      '<h2 style="color:var(--accent);display:flex;align-items:center;gap:8px">👑 મુખ્ય ઍડમિન પેનલ — શિક્ષકોની મંજૂરી (User Approvals)</h2>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">' +
+        '<h2 style="color:var(--accent);display:flex;align-items:center;gap:8px;margin:0">👑 મુખ્ય ઍડમિન પેનલ — શિક્ષકોની મંજૂરી (User Approvals)</h2>' +
+        '<button type="button" class="btn btn-sm btn-quiet" data-act="admin-refresh-teachers">🔄 ક્લાઉડમાંથી રિફ્રેશ કરો</button>' +
+      '</div>' +
       '<p style="margin-top:0">મુખ્ય ઍડમિન તરીકે (<b>mahaanthakkar2008@gmail.com</b>) તમે નવા નોંધાયેલા શિક્ષકોને Approve કે રદ કરી શકો છો. માત્ર Approve થયેલા શિક્ષકો જ લૉગિન કરી શકશે.</p>' +
+
+      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:6px">➕ નવો શિક્ષક ઉમેરો & સીધા Approve કરો (Direct Add & Approve)</h3>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px">' +
+          '<label class="field" style="margin:0"><span class="lbl">શિક્ષકનું નામ</span><input class="input input-sm" id="admin-add-name" placeholder="દા.ત. રમેશભાઈ પટેલ"></label>' +
+          '<label class="field" style="margin:0"><span class="lbl">શિક્ષકનું ઇમેઇલ</span><input class="input input-sm" type="email" id="admin-add-email" placeholder="teacher@gmail.com"></label>' +
+        '</div>' +
+        '<div style="margin-bottom:10px">' +
+          '<span class="lbl" style="display:block;margin-bottom:4px">વિષયો પસંદ કરો:</span>' +
+          '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px">' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="physics" checked> ભૌતિકવિજ્ઞાન (Physics)</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="maths"> ગણિત (Maths)</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-sub" value="science"> વિજ્ઞાન (Science)</label>' +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:12px">' +
+          '<span class="lbl" style="display:block;margin-bottom:4px">ધોરણ પસંદ કરો:</span>' +
+          '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px">' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="8"> ધોરણ 8</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="9"> ધોરણ 9</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="10"> ધોરણ 10</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="11" checked> ધોરણ 11</label>' +
+            '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="adm-std" value="12" checked> ધોરણ 12</label>' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-act="admin-add-teacher">➕ શિક્ષક ઉમેરો & Approve કરો</button>' +
+      '</div>' +
+
       (emails.length === 0
         ? '<div style="padding:14px;background:var(--bg);border-radius:8px;text-align:center;color:var(--muted);border:1px dashed var(--border)">હજુ સુધી કોઈ શિક્ષકે સાઇન-અપ કર્યું નથી.</div>'
         : '<div style="overflow-x:auto"><table style="width:100%;text-align:left;border-collapse:collapse;font-size:14.5px">' +
@@ -260,6 +291,21 @@
       '<div class="page-head"><div><h1>ટેમ્પ્લેટ અને સેટિંગ્સ</h1><p>સિંક, પેપરના ફોર્મેટમાં સંસ્થાનું નામ, લોગો અને લખાણ, બેકઅપ.</p></div></div>' +
       adminApprovalsPanel() +
       accountPanel() +
+      '<section class="panel"><h2>✨ Gemini AI સેટિંગ્સ (સૂત્રો & PDF Import)</h2>' +
+        '<p style="margin-top:0">PDF પેપરમાંથી પ્રશ્નો અને ગણિતનાં અટપટાં સમીકરણો/સૂત્રો (LaTeX) એકદમ સચોટ લાવવા માટે Gemini AI વાપરી શકાય છે.</p>' +
+        '<div class="row row-2">' +
+          '<label class="field"><span class="lbl">Gemini API Key</span>' +
+            '<input type="password" class="input" data-setting-gemini-key value="' + esc(QPG.gemini ? QPG.gemini.getApiKey() : '') + '" placeholder="AIzaSy...">' +
+          '</label>' +
+          '<div class="field" style="display:flex;align-items:flex-end;gap:8px">' +
+            '<button type="button" class="btn btn-primary" data-act="save-settings-gemini">સાચવો / ચકાસો</button>' +
+            '<a class="btn btn-quiet" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">મફત API Key મેળવો ↗</a>' +
+          '</div>' +
+        '</div>' +
+        '<div data-gemini-status style="margin-top:8px;font-size:14px;color:var(--muted)">' +
+          (QPG.gemini && QPG.gemini.hasApiKey() ? '✓ Gemini API Key સક્રિય છે.' : 'કી દાખલ કરેલી નથી.') +
+        '</div>' +
+      '</section>' +
       app.templateList().map(templatePanel).join('') +
       '<section class="panel"><h2>બેકઅપ ફાઇલ</h2>' +
         '<p style="margin-top:0">બધા પ્રશ્નો, પેપર અને ફોર્મેટ એક ફાઇલમાં સેવ થશે. સિંક ચાલુ હોય તો પણ મહિનામાં એક વાર બેકઅપ ફાઇલ બનાવી Drive / ઇમેઇલમાં રાખવી સલાહભર્યું છે.</p>' +
@@ -433,6 +479,78 @@
       if (!b) return;
       var a = b.getAttribute('data-act');
       if (accountClick(a, b, el)) return;
+
+      if (a === 'admin-refresh-teachers') {
+        b.disabled = true;
+        b.textContent = 'લાવે છે…';
+        (QPG.approvals ? QPG.approvals.fetchRemoteAll() : Promise.resolve({})).then(function () {
+          QPG.ui.toast('શિક્ષકોની યાદી ક્લાઉડમાંથી તાજી થઈ');
+          app.rerender();
+        }).catch(function (err) {
+          QPG.ui.toast('ભૂલ: ' + (err.message || err));
+        }).finally(function () {
+          b.disabled = false;
+          b.textContent = '🔄 ક્લાઉડમાંથી રિફ્રેશ કરો';
+        });
+        return;
+      }
+
+      if (a === 'admin-add-teacher') {
+        var nameInput = el.querySelector('#admin-add-name');
+        var emailInput = el.querySelector('#admin-add-email');
+        var tName = nameInput ? nameInput.value.trim() : '';
+        var tEmail = emailInput ? emailInput.value.trim().toLowerCase() : '';
+        if (!tEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(tEmail)) {
+          QPG.ui.toast('માન્ય ઇમેઇલ સરનામું લખો.');
+          if (emailInput) emailInput.focus();
+          return;
+        }
+        var subs = [];
+        el.querySelectorAll('input[name="adm-sub"]:checked').forEach(function (cb) { subs.push(cb.value); });
+        if (!subs.length) {
+          QPG.ui.toast('ઓછામાં ઓછો એક વિષય પસંદ કરો.');
+          return;
+        }
+        var stds = [];
+        el.querySelectorAll('input[name="adm-std"]:checked').forEach(function (cb) { stds.push(Number(cb.value)); });
+        if (!stds.length) {
+          QPG.ui.toast('ઓછામાં ઓછું એક ધોરણ પસંદ કરો.');
+          return;
+        }
+        b.disabled = true;
+        QPG.approvals.addOrApproveTeacher(tEmail, tName || tEmail.split('@')[0], subs, stds);
+        QPG.ui.toast('✓ શિક્ષક (' + tEmail + ') સફળતાપૂર્વક ઉમેરાયા અને Approve થઈ ગયા!');
+        app.rerender();
+        return;
+      }
+
+      if (a === 'save-settings-gemini') {
+        var inp = el.querySelector('[data-setting-gemini-key]');
+        var key = inp ? inp.value.trim() : '';
+        var statusEl = el.querySelector('[data-gemini-status]');
+        if (!key) {
+          if (QPG.gemini) QPG.gemini.setApiKey('');
+          QPG.ui.toast('Gemini API Key કાઢી નાખી.');
+          if (statusEl) statusEl.textContent = 'કી દાખલ કરેલી નથી.';
+          return;
+        }
+        b.textContent = 'ચકાસે છે…';
+        b.disabled = true;
+        (QPG.gemini ? QPG.gemini.testApiKey(key) : Promise.resolve()).then(function () {
+          if (QPG.gemini) QPG.gemini.setApiKey(key);
+          QPG.ui.toast('✨ Gemini API Key સફળતાપૂર્વક સાચવી અને ચકાસી લેવાઈ!');
+          b.textContent = 'સાચવો / ચકાસો';
+          b.disabled = false;
+          if (statusEl) statusEl.textContent = '✓ Gemini API Key સક્રિય છે.';
+        }).catch(function (err) {
+          b.textContent = 'સાચવો / ચકાસો';
+          b.disabled = false;
+          QPG.ui.toast('API Key ભૂલ: ' + (err && err.message || err));
+          if (statusEl) statusEl.textContent = 'ભૂલ: ' + (err && err.message || err);
+        });
+        return;
+      }
+
       if (a === 'backup') { b.disabled = true; makeBackup().catch(function (err) { QPG.ui.toast('બેકઅપ બની શક્યો નહીં: ' + (err.message || err)); }).finally(function () { b.disabled = false; }); return; }
       if (a === 'restore-merge') { applyRestore('merge'); return; }
       if (a === 'restore-replace') { applyRestore('replace'); return; }
