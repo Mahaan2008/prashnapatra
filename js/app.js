@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var QPG = root.QPG;
-  var VERSION = '0.7.1';
+  var VERSION = '0.7.2';
   var DEMO_DATE = '2026-01-01T00:00:00.000Z';
 
   var state = {

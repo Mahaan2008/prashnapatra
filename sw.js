@@ -1,6 +1,6 @@
 /* Offline support: keeps the app files on the device so it opens without internet.
    Bump VERSION whenever app files change, so phones pick up the new version. */
-var VERSION = 'qpg-0.7.1';
+var VERSION = 'qpg-0.7.2';
 var FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'css/paper.css',
   'vendor/katex/katex.min.css', 'vendor/katex/katex.min.js', 'vendor/katex/contrib/auto-render.min.js',
@@ -50,7 +50,9 @@ self.addEventListener('activate', function (e) {
 /* App files: cache first (works offline). KaTeX fonts and anything else: cache, then network. */
 self.addEventListener('fetch', function (e) {
   var req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  var url = new URL(req.url);
+  // never cache server answers (/api/…): they change (e.g. the AI key being switched on)
+  if (req.method !== 'GET' || url.origin !== location.origin || /\/api\//.test(url.pathname)) return;
   e.respondWith(caches.match(req, { ignoreSearch: true }).then(function (hit) {
     if (hit) return hit;
     return fetch(req).then(function (res) {
